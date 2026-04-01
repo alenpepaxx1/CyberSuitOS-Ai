@@ -4,7 +4,7 @@ import {
   Shield, AlertTriangle, Activity, Globe, Zap, Lock, 
   Terminal, Server, Cpu, Database, Eye, RefreshCw,
   TrendingUp, TrendingDown, Target, Radio, ShieldAlert, ShieldCheck, MessageSquare, ExternalLink, Clock, Loader2, Terminal as TerminalIcon,
-  Mail, Hash, Search, Settings, Bot
+  Mail, Hash, Search, Settings, Bot, User
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { motion, AnimatePresence } from 'motion/react';
@@ -58,7 +58,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
-  const { stats } = useSystem();
+  const { stats, firewallEnabled, vpnEnabled, userName, clearanceLevel } = useSystem();
   const [threatNews, setThreatNews] = useState<ThreatNews[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
@@ -217,10 +217,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       {/* Top Stats Bar */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Active Threats', value: '1,242', icon: AlertTriangle, color: 'text-red-500', trend: '+12%', trendUp: true },
-          { label: 'Blocked Attacks', value: '45.2k', icon: Shield, color: 'text-emerald-500', trend: '+5.4%', trendUp: true },
-          { label: 'System Health', value: '99.8%', icon: Activity, color: 'text-blue-500', trend: 'Stable', trendUp: true },
-          { label: 'Global Nodes', value: '24', icon: Globe, color: 'text-amber-500', trend: '-2', trendUp: false },
+          { label: 'Active Threats', value: firewallEnabled ? '1,242' : '8,421', icon: AlertTriangle, color: firewallEnabled ? 'text-amber-500' : 'text-red-500', trend: firewallEnabled ? '+12%' : '+450%', trendUp: !firewallEnabled },
+          { label: 'Blocked Attacks', value: firewallEnabled ? '45.2k' : '0', icon: Shield, color: firewallEnabled ? 'text-emerald-500' : 'text-gray-500', trend: firewallEnabled ? '+5.4%' : '-100%', trendUp: firewallEnabled },
+          { label: 'System Health', value: firewallEnabled ? '99.8%' : '64.2%', icon: Activity, color: firewallEnabled ? 'text-blue-500' : 'text-red-500', trend: firewallEnabled ? 'Stable' : 'Critical', trendUp: firewallEnabled },
+          { label: 'Neural VPN', value: vpnEnabled ? 'CONNECTED' : 'OFFLINE', icon: Globe, color: vpnEnabled ? 'text-blue-500' : 'text-gray-500', trend: vpnEnabled ? 'Secure' : 'Exposed', trendUp: vpnEnabled },
         ].map((stat, i) => (
           <motion.div
             key={i}
@@ -252,24 +252,28 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <div className="grid grid-cols-3 gap-4">
         <div className="cyber-card p-3 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Cpu className="w-4 h-4 text-emerald-500" />
-            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">CPU Load</span>
+            <User size={16} className="text-purple-500" />
+            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Operator</span>
           </div>
-          <span className="text-sm font-mono font-bold text-white">{stats?.cpu || '0'}%</span>
+          <span className="text-sm font-mono font-bold text-white">{userName} (L{clearanceLevel})</span>
         </div>
         <div className="cyber-card p-3 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Database className="w-4 h-4 text-blue-500" />
-            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">RAM Usage</span>
+            <Shield size={16} className={firewallEnabled ? "text-emerald-500" : "text-red-500"} />
+            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Firewall</span>
           </div>
-          <span className="text-sm font-mono font-bold text-white">{stats?.ram || '0'}%</span>
+          <span className={cn("text-sm font-mono font-bold", firewallEnabled ? "text-emerald-500" : "text-red-500")}>
+            {firewallEnabled ? 'ACTIVE' : 'DISABLED'}
+          </span>
         </div>
         <div className="cyber-card p-3 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Globe className="w-4 h-4 text-amber-500" />
-            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">System Node</span>
+            <Globe className="w-4 h-4 text-blue-500" />
+            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">VPN Tunnel</span>
           </div>
-          <span className="text-sm font-mono font-bold text-white">{stats?.hostname || 'LOCAL_HOST'}</span>
+          <span className={cn("text-sm font-mono font-bold", vpnEnabled ? "text-blue-500" : "text-gray-500")}>
+            {vpnEnabled ? 'ENCRYPTED' : 'PLAIN_TEXT'}
+          </span>
         </div>
       </div>
 
