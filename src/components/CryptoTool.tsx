@@ -22,9 +22,11 @@ import CryptoJS from 'crypto-js';
 import { logToTerminal } from './Terminal';
 
 type Mode = 'hash' | 'encode' | 'encrypt';
+type EncryptSubMode = 'encrypt' | 'decrypt';
 
 export default function CryptoTool() {
   const [mode, setMode] = useState<Mode>('hash');
+  const [encryptSubMode, setEncryptSubMode] = useState<EncryptSubMode>('encrypt');
   const [input, setInput] = useState('');
   const [sessionKey, setSessionKey] = useState(() => {
     return sessionStorage.getItem('cyber_crypto_key') || '';
@@ -386,7 +388,30 @@ export default function CryptoTool() {
                   </button>
                 ))
               ) : (
-                <div className="text-xs font-mono text-gray-500 uppercase tracking-widest">AES-256 CBC Mode</div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEncryptSubMode('encrypt')}
+                    className={cn(
+                      "px-4 py-2 rounded-lg border text-xs font-mono transition-all flex items-center gap-2",
+                      encryptSubMode === 'encrypt' 
+                        ? "bg-cyber-green/10 border-cyber-green/40 text-cyber-green" 
+                        : "border-cyber-border text-gray-500 hover:border-gray-600"
+                    )}
+                  >
+                    <Lock size={12} /> ENCRYPT
+                  </button>
+                  <button
+                    onClick={() => setEncryptSubMode('decrypt')}
+                    className={cn(
+                      "px-4 py-2 rounded-lg border text-xs font-mono transition-all flex items-center gap-2",
+                      encryptSubMode === 'decrypt' 
+                        ? "bg-cyber-green/10 border-cyber-green/40 text-cyber-green" 
+                        : "border-cyber-border text-gray-500 hover:border-gray-600"
+                    )}
+                  >
+                    <Unlock size={12} /> DECRYPT
+                  </button>
+                </div>
               )}
             </div>
 
@@ -394,10 +419,10 @@ export default function CryptoTool() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-mono text-gray-500 uppercase tracking-widest">
-                    {mode === 'hash' ? `${algorithm} Hash` : mode === 'encode' ? `${encoding} Encoded` : 'AES Encrypted (Ciphertext)'}
+                    {mode === 'hash' ? `${algorithm} Hash` : mode === 'encode' ? `${encoding} Encoded` : encryptSubMode === 'encrypt' ? 'AES Ciphertext' : 'AES Plaintext'}
                   </label>
                   <button 
-                    onClick={() => copyToClipboard(mode === 'encrypt' ? getEncrypted() : output)}
+                    onClick={() => copyToClipboard(mode === 'encrypt' ? (encryptSubMode === 'encrypt' ? getEncrypted() : getDecrypted()) : output)}
                     className="text-xs text-cyber-green hover:underline flex items-center gap-1"
                   >
                     {copied ? <Check size={12} /> : <Copy size={12} />} Copy
@@ -409,24 +434,19 @@ export default function CryptoTool() {
                       <span className="text-[10px] text-yellow-500 uppercase tracking-[0.3em]">Vault Locked // Unlock to view</span>
                     </div>
                   ) : null}
-                  {mode === 'encrypt' ? getEncrypted() : (output || 'Waiting for input...')}
+                  {mode === 'encrypt' ? (encryptSubMode === 'encrypt' ? getEncrypted() : getDecrypted()) : (output || 'Waiting for input...')}
                 </div>
               </div>
 
-              {(mode === 'encode' || mode === 'encrypt') && (
+              {mode === 'encode' && (
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-mono text-gray-500 uppercase tracking-widest">
-                      {mode === 'encode' ? `${encoding} Decoded` : 'AES Decrypted (Plaintext)'}
+                      {encoding} Decoded
                     </label>
                   </div>
                   <div className="w-full bg-black/60 border border-cyber-border rounded-xl px-6 py-4 font-mono text-blue-400 break-all min-h-[60px] relative">
-                    {mode === 'encrypt' && isVaultLocked ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-xl">
-                        <span className="text-[10px] text-yellow-500 uppercase tracking-[0.3em]">Vault Locked // Unlock to view</span>
-                      </div>
-                    ) : null}
-                    {mode === 'encrypt' ? getDecrypted() : (decodedOutput || 'Waiting for input...')}
+                    {decodedOutput || 'Waiting for input...'}
                   </div>
                 </div>
               )}
