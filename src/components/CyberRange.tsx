@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '@/src/lib/utils';
 
 interface SimulationStep {
   id: string;
@@ -16,16 +17,85 @@ interface SimulationStep {
   logs: string[];
 }
 
+interface Scenario {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+  steps: Omit<SimulationStep, 'status' | 'logs'>[];
+}
+
+const SCENARIOS: Scenario[] = [
+  {
+    id: 'apt',
+    name: 'Advanced Persistent Threat (APT)',
+    description: 'A long-term attack where an intruder gains access to a network and remains undetected.',
+    icon: <Target size={16} />,
+    color: 'text-red-500',
+    steps: [
+      { id: 'recon', title: 'Reconnaissance', description: 'Passive and active scanning of target infrastructure.' },
+      { id: 'exploit', title: 'Initial Access', description: 'Exploiting identified vulnerabilities to gain a foothold.' },
+      { id: 'persist', title: 'Persistence', description: 'Establishing long-term access to the compromised system.' },
+      { id: 'exfil', title: 'Data Exfiltration', description: 'Identifying and extracting sensitive information.' },
+    ]
+  },
+  {
+    id: 'ransomware',
+    name: 'Ransomware Outbreak',
+    description: 'A fast-moving attack that encrypts files and demands a ransom for the decryption key.',
+    icon: <Lock size={16} />,
+    color: 'text-amber-500',
+    steps: [
+      { id: 'delivery', title: 'Payload Delivery', description: 'Delivering the ransomware binary via phishing or exploit.' },
+      { id: 'execution', title: 'Execution', description: 'The ransomware starts encrypting files on the local disk.' },
+      { id: 'lateral', title: 'Lateral Movement', description: 'Spreading to other machines on the network.' },
+      { id: 'demand', title: 'Ransom Demand', description: 'Displaying the ransom note and locking the system.' },
+    ]
+  },
+  {
+    id: 'insider',
+    name: 'Insider Threat',
+    description: 'A malicious actor within the organization abusing their legitimate access.',
+    icon: <Shield size={16} />,
+    color: 'text-blue-500',
+    steps: [
+      { id: 'privesc', title: 'Privilege Escalation', description: 'Abusing legitimate access to gain higher permissions.' },
+      { id: 'collection', title: 'Data Collection', description: 'Gathering sensitive internal documents and credentials.' },
+      { id: 'staging', title: 'Staging', description: 'Preparing the collected data for unauthorized transfer.' },
+      { id: 'leak', title: 'Data Leakage', description: 'Transferring data to an external, unauthorized location.' },
+    ]
+  },
+  {
+    id: 'ddos',
+    name: 'DDoS Attack',
+    description: 'Overwhelming a target service with a flood of internet traffic to disrupt operations.',
+    icon: <Zap size={16} />,
+    color: 'text-purple-500',
+    steps: [
+      { id: 'botnet', title: 'Botnet Activation', description: 'Activating a global network of compromised devices.' },
+      { id: 'flood', title: 'Traffic Flood', description: 'Sending massive amounts of UDP/TCP traffic to the target.' },
+      { id: 'exhaustion', title: 'Resource Exhaustion', description: 'Overwhelming the target server\'s CPU and memory.' },
+      { id: 'outage', title: 'Service Outage', description: 'The target service becomes unavailable to legitimate users.' },
+    ]
+  }
+];
+
 export default function CyberRange() {
-  const [scenario, setScenario] = useState<string>('Advanced Persistent Threat (APT) Simulation');
+  const [activeScenario, setActiveScenario] = useState<Scenario>(SCENARIOS[0]);
   const [isSimulating, setIsSimulating] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [steps, setSteps] = useState<SimulationStep[]>([
-    { id: 'recon', title: 'Reconnaissance', description: 'Passive and active scanning of target infrastructure.', status: 'pending', logs: [] },
-    { id: 'exploit', title: 'Initial Access', description: 'Exploiting identified vulnerabilities to gain a foothold.', status: 'pending', logs: [] },
-    { id: 'persist', title: 'Persistence', description: 'Establishing long-term access to the compromised system.', status: 'pending', logs: [] },
-    { id: 'exfil', title: 'Data Exfiltration', description: 'Identifying and extracting sensitive information.', status: 'pending', logs: [] },
-  ]);
+  const [steps, setSteps] = useState<SimulationStep[]>([]);
+  const [stats, setStats] = useState({
+    confidence: 0,
+    successRate: 0,
+    stealth: 'STABLE'
+  });
+
+  useEffect(() => {
+    setSteps(activeScenario.steps.map(s => ({ ...s, status: 'pending', logs: [] })));
+    setStats({ confidence: 0, successRate: 0, stealth: 'STABLE' });
+  }, [activeScenario]);
 
   const runSimulation = async () => {
     if (isSimulating) return;
@@ -35,6 +105,13 @@ export default function CyberRange() {
       setCurrentStepIndex(i);
       setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'running' } : s));
       
+      // Update stats dynamically
+      setStats({
+        confidence: Math.floor(85 + Math.random() * 10),
+        successRate: Math.floor(70 + (i / steps.length) * 25),
+        stealth: i > 2 ? 'CRITICAL' : 'STABLE'
+      });
+
       // Simulate AI-generated logs for each step
       try {
         const apiKey = process.env.GEMINI_API_KEY;
@@ -69,6 +146,89 @@ export default function CyberRange() {
               '[INFO] Compressing and encrypting exfiltration package...',
               '[SUCCESS] Data exfiltration complete via fragmented DNS tunneling.',
               '[SUCCESS] Simulation objective achieved: Full system compromise.'
+            ],
+            'delivery': [
+              '[INFO] Crafting spear-phishing email with malicious attachment...',
+              '[INFO] Sending email to 50 high-value targets...',
+              '[SUCCESS] 12 users opened the email, 3 clicked the link.',
+              '[INFO] Dropping ransomware binary "crypt_v2.exe" on victim machine.',
+              '[SUCCESS] Payload delivery successful.'
+            ],
+            'execution': [
+              '[INFO] Executing "crypt_v2.exe" with elevated privileges...',
+              '[INFO] Scanning for local files with extensions: .docx, .pdf, .jpg, .xlsx...',
+              '[SUCCESS] Found 14,203 target files.',
+              '[INFO] Starting AES-256 encryption process...',
+              '[SUCCESS] 85% of local files encrypted.'
+            ],
+            'lateral': [
+              '[INFO] Scanning local network for SMB shares...',
+              '[SUCCESS] Found 4 network drives: \\\\FS01, \\\\BACKUP, \\\\HR_DATA, \\\\FINANCE.',
+              '[INFO] Attempting credential harvesting from memory...',
+              '[SUCCESS] Domain Admin credentials recovered from LSASS.',
+              '[INFO] Propagating ransomware to network shares...'
+            ],
+            'demand': [
+              '[INFO] Generating unique decryption key for victim ID: 8829-X...',
+              '[INFO] Replacing desktop wallpaper with ransom instructions...',
+              '[SUCCESS] Ransom demand displayed: 5.0 BTC required.',
+              '[INFO] Disabling system recovery and shadow copies...',
+              '[SUCCESS] System locked. Simulation complete.'
+            ],
+            'privesc': [
+              '[INFO] Analyzing current user permissions...',
+              '[SUCCESS] Current user: j.doe (Domain User).',
+              '[INFO] Searching for misconfigured services...',
+              '[SUCCESS] Found unquoted service path in "PrintSpoolerV2".',
+              '[INFO] Exploiting service path to gain SYSTEM access...'
+            ],
+            'collection': [
+              '[INFO] Accessing Domain Controller via SYSTEM account...',
+              '[SUCCESS] Dumping NTDS.dit database.',
+              '[INFO] Searching for files containing "CONFIDENTIAL" or "SECRET"...',
+              '[SUCCESS] Found 452 sensitive documents in /Internal/Project_X.',
+              '[INFO] Harvesting browser cookies and saved passwords...'
+            ],
+            'staging': [
+              '[INFO] Creating hidden staging directory in C:\\Windows\\Temp\\_sys_...',
+              '[INFO] Compressing collected data into encrypted 7z archives...',
+              '[SUCCESS] 4.5GB of data staged for exfiltration.',
+              '[INFO] Splitting archives into 50MB chunks to avoid detection...',
+              '[SUCCESS] Staging complete.'
+            ],
+            'leak': [
+              '[INFO] Initializing data transfer to external FTP server...',
+              '[INFO] Using fragmented HTTPS requests to bypass DLP...',
+              '[SUCCESS] 2.1GB of data successfully transferred.',
+              '[INFO] Deleting staging directory and clearing event logs...',
+              '[SUCCESS] Data leakage complete. Insider threat simulation successful.'
+            ],
+            'botnet': [
+              '[INFO] Sending activation signal to 15,000 global bots...',
+              '[SUCCESS] 12,450 bots responded and are ready for deployment.',
+              '[INFO] Synchronizing attack vectors: SYN Flood, UDP Flood, HTTP GET Flood...',
+              '[SUCCESS] Botnet synchronized and waiting for target IP.'
+            ],
+            'flood': [
+              '[INFO] Launching multi-vector flood against 203.0.113.45...',
+              '[INFO] Current traffic volume: 450 Gbps.',
+              '[SUCCESS] Target edge router CPU utilization at 98%.',
+              '[INFO] Bypassing Cloudflare protection via direct IP targeting...',
+              '[SUCCESS] Traffic flood reaching target origin server.'
+            ],
+            'exhaustion': [
+              '[INFO] Target server (Nginx) connection pool exhausted.',
+              '[INFO] Database (PostgreSQL) max_connections reached.',
+              '[SUCCESS] Server response time increased to 45,000ms.',
+              '[INFO] Kernel panic detected on target web server...',
+              '[SUCCESS] Resource exhaustion achieved.'
+            ],
+            'outage': [
+              '[INFO] Monitoring target service availability...',
+              '[SUCCESS] Service status: 503 Service Unavailable.',
+              '[INFO] Global monitoring nodes reporting 100% packet loss to target.',
+              '[SUCCESS] DDoS objective achieved: Total service outage.',
+              '[INFO] Maintaining flood to prevent recovery...'
             ]
           };
           
@@ -82,7 +242,7 @@ export default function CyberRange() {
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
           contents: `Generate 5 technical log entries for a cybersecurity simulation step: ${steps[i].title}. 
-          The scenario is: ${scenario}. Return as a JSON array of strings.`,
+          The scenario is: ${activeScenario.name}. Return as a JSON array of strings.`,
           config: { responseMimeType: "application/json" }
         });
         
@@ -101,22 +261,52 @@ export default function CyberRange() {
   const resetSimulation = () => {
     setIsSimulating(false);
     setCurrentStepIndex(0);
-    setSteps(prev => prev.map(s => ({ ...s, status: 'pending', logs: [] })));
+    setSteps(activeScenario.steps.map(s => ({ ...s, status: 'pending', logs: [] })));
+    setStats({ confidence: 0, successRate: 0, stealth: 'STABLE' });
   };
+
+  const outputEndRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (outputEndRef.current) {
+      outputEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [steps]);
 
   return (
     <div className="flex flex-col h-full bg-[#0a0a0a] border border-[#222] rounded-2xl overflow-hidden">
-      <div className="p-6 border-b border-[#222] bg-[#111] flex items-center justify-between">
+      <div className="p-6 border-b border-[#222] bg-[#111] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-red-500/10 rounded-lg">
-            <Target className="w-5 h-5 text-red-500" />
+          <div className={cn("p-2 rounded-lg bg-opacity-10", activeScenario.color.replace('text-', 'bg-'))}>
+            {activeScenario.icon}
           </div>
           <div>
             <h2 className="text-sm font-mono uppercase tracking-widest text-white">Cyber Range Simulation</h2>
-            <p className="text-[10px] font-mono text-[#555] uppercase tracking-tighter">{scenario}</p>
+            <div className="flex items-center gap-2">
+              <p className={cn("text-[10px] font-mono uppercase tracking-tighter", activeScenario.color)}>{activeScenario.name}</p>
+              <span className="text-[10px] text-[#333]">|</span>
+              <p className="text-[10px] font-mono text-[#555] uppercase tracking-tighter">Scenario Active</p>
+            </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        
+        <div className="flex flex-wrap gap-2">
+          {SCENARIOS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => !isSimulating && setActiveScenario(s)}
+              disabled={isSimulating}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[9px] font-mono uppercase tracking-wider border transition-all",
+                activeScenario.id === s.id
+                  ? "bg-white/10 border-white/20 text-white"
+                  : "bg-transparent border-[#222] text-[#555] hover:border-[#333] hover:text-[#888]"
+              )}
+            >
+              {s.name.split(' ')[0]}
+            </button>
+          ))}
+          <div className="w-px h-8 bg-[#222] mx-2 hidden md:block" />
           <button 
             onClick={resetSimulation}
             className="p-2 hover:bg-[#222] rounded-lg text-[#555] transition-colors"
@@ -126,11 +316,12 @@ export default function CyberRange() {
           <button 
             onClick={runSimulation}
             disabled={isSimulating}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-all ${
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-all",
               isSimulating 
                 ? 'bg-red-500/10 text-red-500 border border-red-500/20 cursor-not-allowed' 
                 : 'bg-red-500 text-white hover:bg-red-600 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
-            }`}
+            )}
           >
             {isSimulating ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
             {isSimulating ? 'SIMULATING...' : 'START SIMULATION'}
@@ -140,24 +331,37 @@ export default function CyberRange() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Steps Sidebar */}
-        <div className="w-64 border-r border-[#222] p-4 space-y-3 bg-[#0d0d0d]">
+        <div className="w-64 border-r border-[#222] p-4 space-y-3 bg-[#0d0d0d] overflow-y-auto custom-scrollbar">
+          <div className="mb-4">
+            <h4 className="text-[9px] font-mono text-[#444] uppercase tracking-[0.2em] mb-2">Scenario Intel</h4>
+            <p className="text-[10px] text-[#666] leading-relaxed italic">
+              {activeScenario.description}
+            </p>
+          </div>
+          
+          <div className="h-px bg-[#222] my-4" />
+
           {steps.map((step, i) => (
             <div 
               key={step.id}
-              className={`p-3 rounded-lg border transition-all ${
+              className={cn(
+                "p-3 rounded-lg border transition-all",
                 i === currentStepIndex && isSimulating 
-                  ? 'bg-red-500/5 border-red-500/30' 
+                  ? 'bg-red-500/5 border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.05)]' 
                   : step.status === 'completed'
                   ? 'bg-emerald-500/5 border-emerald-500/20'
                   : 'bg-[#151515] border-[#222]'
-              }`}
+              )}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] font-mono text-[#555]">STEP 0{i + 1}</span>
                 {step.status === 'completed' && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
                 {step.status === 'running' && <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
               </div>
-              <h3 className={`text-xs font-bold ${i === currentStepIndex ? 'text-white' : 'text-[#888]'}`}>
+              <h3 className={cn(
+                "text-xs font-bold",
+                i === currentStepIndex ? 'text-white' : 'text-[#888]'
+              )}>
                 {step.title}
               </h3>
               <p className="text-[9px] text-[#555] mt-1 leading-tight">{step.description}</p>
@@ -167,12 +371,20 @@ export default function CyberRange() {
 
         {/* Log Viewer */}
         <div className="flex-1 flex flex-col bg-black p-6 font-mono overflow-hidden">
-          <div className="flex items-center gap-2 mb-4 text-[#555]">
-            <Terminal className="w-4 h-4" />
-            <span className="text-[10px] uppercase tracking-widest">Simulation Log Output</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-[#555]">
+              <Terminal className="w-4 h-4" />
+              <span className="text-[10px] uppercase tracking-widest">Simulation Log Output</span>
+            </div>
+            {isSimulating && (
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
+                <span className="text-[9px] text-red-500 uppercase tracking-widest">Live Feed</span>
+              </div>
+            )}
           </div>
           
-          <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-2">
             {steps.flatMap(s => s.logs).length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-[#222]">
                 <Bug className="w-12 h-12 mb-4 opacity-20" />
@@ -187,14 +399,15 @@ export default function CyberRange() {
                     key={j}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="flex gap-3 text-[11px]"
+                    className="flex gap-3 text-[11px] group"
                   >
-                    <span className="text-[#333] shrink-0">[{new Date().toLocaleTimeString()}]</span>
-                    <span className={
+                    <span className="text-[#333] shrink-0 group-hover:text-[#555] transition-colors">[{new Date().toLocaleTimeString()}]</span>
+                    <span className={cn(
+                      "transition-colors",
                       log.includes('SUCCESS') ? 'text-emerald-500' :
                       log.includes('ERROR') ? 'text-red-500' :
                       log.includes('WARN') ? 'text-amber-500' : 'text-blue-400'
-                    }>
+                    )}>
                       {log}
                     </span>
                   </motion.div>
@@ -208,29 +421,35 @@ export default function CyberRange() {
                 <span className="uppercase tracking-widest">Processing attack vector...</span>
               </div>
             )}
+            <div ref={outputEndRef} />
           </div>
 
           <div className="mt-4 pt-4 border-t border-[#222] grid grid-cols-3 gap-4">
-            <div className="p-3 bg-[#111] rounded-lg border border-[#222]">
+            <div className="p-3 bg-[#111] rounded-lg border border-[#222] group hover:border-blue-500/30 transition-colors">
               <div className="flex items-center gap-2 mb-1">
                 <Cpu className="w-3 h-3 text-blue-500" />
                 <span className="text-[9px] text-[#555] uppercase">AI Confidence</span>
               </div>
-              <div className="text-sm font-bold text-white">94.2%</div>
+              <div className="text-sm font-bold text-white">{stats.confidence > 0 ? `${stats.confidence}.2%` : '---'}</div>
             </div>
-            <div className="p-3 bg-[#111] rounded-lg border border-[#222]">
+            <div className="p-3 bg-[#111] rounded-lg border border-[#222] group hover:border-emerald-500/30 transition-colors">
               <div className="flex items-center gap-2 mb-1">
                 <Activity className="w-3 h-3 text-emerald-500" />
                 <span className="text-[9px] text-[#555] uppercase">Success Rate</span>
               </div>
-              <div className="text-sm font-bold text-white">88.0%</div>
+              <div className="text-sm font-bold text-white">{stats.successRate > 0 ? `${stats.successRate}.0%` : '---'}</div>
             </div>
-            <div className="p-3 bg-[#111] rounded-lg border border-[#222]">
+            <div className="p-3 bg-[#111] rounded-lg border border-[#222] group hover:border-amber-500/30 transition-colors">
               <div className="flex items-center gap-2 mb-1">
                 <Lock className="w-3 h-3 text-amber-500" />
                 <span className="text-[9px] text-[#555] uppercase">Stealth Level</span>
               </div>
-              <div className="text-sm font-bold text-white">CRITICAL</div>
+              <div className={cn(
+                "text-sm font-bold",
+                stats.stealth === 'CRITICAL' ? 'text-red-500' : stats.stealth === 'STABLE' && stats.confidence > 0 ? 'text-emerald-500' : 'text-white'
+              )}>
+                {stats.confidence > 0 ? stats.stealth : '---'}
+              </div>
             </div>
           </div>
         </div>
