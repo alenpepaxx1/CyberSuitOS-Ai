@@ -43,6 +43,7 @@ import PayloadLab from './components/PayloadLab';
 import StegoTool from './components/StegoTool';
 import AnonymousChat from './components/AnonymousChat';
 import PythonLab from './components/PythonLab';
+import SystemConfig from './components/SystemConfig';
 import SecurityAnalyst from './components/SecurityAnalyst';
 import AIAnalyst from './components/AIAnalyst';
 import Launcher from './components/Launcher';
@@ -56,11 +57,21 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 type Theme = 'default' | 'matrix' | 'cobalt' | 'crimson';
 
 function MainContent() {
-  const { activeTool, setActiveTool, setToolTarget, stats } = useSystem();
+  const { 
+    activeTool, 
+    setActiveTool, 
+    setToolTarget, 
+    stats,
+    theme,
+    setTheme,
+    showScanlines,
+    showGrid,
+    userName,
+    clearanceLevel
+  } = useSystem();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAnalystOpen, setIsAnalystOpen] = useState(false);
   const [booting, setBooting] = useState(true);
-  const [theme, setTheme] = useState<Theme>('default');
   const [isScanning, setIsScanning] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLauncherOpen, setIsLauncherOpen] = useState(false);
@@ -141,7 +152,7 @@ function MainContent() {
       case 'network': return <NetworkTool />;
       case 'analyst': return <SecurityAnalyst />;
       case 'anonymous-chat': return <AnonymousChat />;
-      case 'settings': return <div className="p-8 text-center text-gray-500 font-mono uppercase tracking-widest">System Configuration Module - Access Restricted</div>;
+      case 'settings': return <SystemConfig />;
       default: return <Dashboard onNavigate={handleNavigate} />;
     }
   };
@@ -196,8 +207,8 @@ function MainContent() {
       theme === 'crimson' && 'crimson-theme'
     )}>
       <CustomCursor />
-      <div className="cyber-grid" />
-      <div className="scanline" />
+      {showGrid && <div className="cyber-grid" />}
+      {showScanlines && <div className="scanline" />}
 
       {/* Sidebar */}
       <motion.aside 
@@ -350,11 +361,11 @@ function MainContent() {
             
             <div className="flex items-center gap-3 pl-4 border-l border-white/10">
               <div className="text-right hidden sm:block">
-                <div className="text-xs font-bold text-white">ADMIN_ROOT</div>
-                <div className="text-[10px] text-emerald-500/60 font-mono">Level 4 Clearance</div>
+                <div className="text-xs font-bold text-white">{userName}</div>
+                <div className="text-[10px] text-emerald-500/60 font-mono">Level {clearanceLevel} Clearance</div>
               </div>
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/20">
-                AR
+                {userName.substring(0, 2).toUpperCase()}
               </div>
             </div>
           </div>
