@@ -1,13 +1,13 @@
 /* COPYRIGHT ALEN PEPA */
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { Bot, Send, User, ShieldCheck, AlertCircle, Terminal, Sparkles, X } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
+import { cyberAi, ChatMessage } from '@/src/services/cyberAiService';
 
 interface Message {
-  role: 'user' | 'assistant';
-  content: string;
+  role: 'user' | 'model';
+  text: string;
   timestamp: Date;
 }
 
@@ -19,8 +19,8 @@ interface AIAnalystProps {
 export default function AIAnalyst({ isOpen, onClose }: AIAnalystProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
-      role: 'assistant',
-      content: "CyberSuite AI Analyst online. How can I assist with your security operations today?",
+      role: 'model',
+      text: "CyberSuite AI Analyst online. I am **Alen**, your neural security core. How can I assist with your security operations today?",
       timestamp: new Date()
     }
   ]);
@@ -39,68 +39,35 @@ export default function AIAnalyst({ isOpen, onClose }: AIAnalystProps) {
 
     const userMessage: Message = {
       role: 'user',
-      content: input,
+      text: input,
       timestamp: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-      setTimeout(() => {
-        const responses = [
-          "I've analyzed the system logs. No immediate threats detected in the current sector.",
-          "Vulnerability scan complete. Recommendation: Update firewall rules for port 443.",
-          "Neural core processing... The requested security protocol is currently being simulated.",
-          "System optimization suggested. Memory usage is at 78% capacity.",
-          "Warning: Potential brute-force attempt detected on SSH node. IP has been blacklisted.",
-          "Security audit finished. All encryption modules are operating within normal parameters.",
-          "Analyzing threat vectors... The most likely attack surface is the legacy API gateway.",
-          "Heuristic analysis suggests a 94% probability of system integrity. Proceed with caution."
-        ];
-        
-        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-        
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: `[OFFLINE_MODE] ${randomResponse}`,
-          timestamp: new Date()
-        };
-
-        setMessages(prev => [...prev, assistantMessage]);
-        setIsLoading(false);
-      }, 1500);
-      return;
-    }
-
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: input,
-        config: {
-          systemInstruction: `You are a world-class cybersecurity analyst and AI assistant for the CyberSuite OS. 
-          Your goal is to provide expert security advice, analyze potential threats, explain vulnerabilities, 
-          and suggest remediation steps. Be professional, concise, and technical. 
-          Use markdown for formatting. If asked about code, provide secure alternatives. 
-          You have access to simulated tools like port scanners, fuzzers, and exploit databases.`,
-        }
-      });
+      const chatHistory: ChatMessage[] = messages.map(m => ({
+        role: m.role,
+        text: m.text
+      }));
+      chatHistory.push({ role: 'user', text: currentInput });
+
+      const responseText = await cyberAi.sendMessage(chatHistory);
 
       const assistantMessage: Message = {
-        role: 'assistant',
-        content: response.text || "I'm sorry, I couldn't process that request.",
+        role: 'model',
+        text: responseText,
         timestamp: new Date()
       };
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: "Error connecting to AI core. Please check your connection.",
+        role: 'model',
+        text: "Error connecting to AI core. Please check your connection.",
         timestamp: new Date()
       }]);
     } finally {
@@ -157,7 +124,7 @@ export default function AIAnalyst({ isOpen, onClose }: AIAnalystProps) {
                     <ShieldCheck className="w-3 h-3 text-blue-500" />
                   )}
                   <span className="text-[9px] font-mono text-[#555] uppercase">
-                    {msg.role === 'user' ? 'Operator' : 'CyberSuite AI'}
+                    {msg.role === 'user' ? 'Operator' : 'Alen'}
                   </span>
                   <span className="text-[8px] font-mono text-[#333]">
                     {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -169,7 +136,7 @@ export default function AIAnalyst({ isOpen, onClose }: AIAnalystProps) {
                     : 'bg-[#151619] border border-[#333] text-[#ccc]'
                 }`}>
                   <div className="markdown-body prose prose-invert prose-xs max-w-none">
-                    <Markdown>{msg.content}</Markdown>
+                    <Markdown>{msg.text}</Markdown>
                   </div>
                 </div>
               </motion.div>
