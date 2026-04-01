@@ -1,10 +1,11 @@
 /* COPYRIGHT ALEN PEPA */
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Bot, User, Trash2, ShieldAlert, Terminal as TerminalIcon, Volume2, VolumeX, PlayCircle } from 'lucide-react';
-import { GoogleGenAI, Modality } from "@google/genai";
+import { Send, Bot, User, Trash2, ShieldAlert, Terminal as TerminalIcon, Volume2, VolumeX, PlayCircle, Sparkles, Command, Info } from 'lucide-react';
+import Markdown from 'react-markdown';
 import { cn } from '@/src/lib/utils';
 import { logToTerminal } from './Terminal';
+import { cyberAi, ChatMessage } from '@/src/services/cyberAiService';
 
 interface Message {
   id: string;
@@ -13,6 +14,15 @@ interface Message {
   timestamp: Date;
   audioUrl?: string;
 }
+
+const SUGGESTED_PROMPTS = [
+  "Explain Zero Trust Architecture",
+  "How to perform a secure Nmap scan?",
+  "What are the top OWASP vulnerabilities?",
+  "Explain the difference between Symmetric and Asymmetric encryption",
+  "How to protect against Ransomware?",
+  "What is a Zero-Day exploit?",
+];
 
 const AnonymousChat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -25,7 +35,7 @@ const AnonymousChat: React.FC = () => {
   
   useEffect(() => {
     // Initial welcome message
-    const welcomeText = "Neural link established. I am the CyberSuite System Core. I can assist with system optimization, threat analysis, and cybersecurity education. How can I help you today?";
+    const welcomeText = "Neural link established. I am **Alen**, the CyberSuite System Core. I can assist with system optimization, threat analysis, and cybersecurity education. How can I help you today?";
     const welcomeMessage: Message = {
       id: 'welcome',
       role: 'model',
@@ -49,44 +59,26 @@ const AnonymousChat: React.FC = () => {
   const speakText = async (text: string, messageId: string) => {
     if (!isTTSEnabled) return;
     
-    const apiKey = process.env.GEMINI_API_KEY;
-    
-    if (apiKey && apiKey !== 'undefined' && apiKey !== '') {
-      try {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash-preview-tts",
-          contents: [{ parts: [{ text: `Say professionally and clearly: ${text}` }] }],
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: 'Kore' },
-              },
-            },
-          },
-        });
-
-        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        if (base64Audio) {
-          const audioBlob = await fetch(`data:audio/wav;base64,${base64Audio}`).then(res => res.blob());
-          const audioUrl = URL.createObjectURL(audioBlob);
-          
-          if (audioRef.current) {
-            audioRef.current.src = audioUrl;
-            audioRef.current.play();
-            setIsPlaying(messageId);
-            audioRef.current.onended = () => setIsPlaying(null);
-          }
-          
-          // Update message with audioUrl for replay
-          setMessages(prev => prev.map(m => m.id === messageId ? { ...m, audioUrl } : m));
+    try {
+      const base64Audio = await cyberAi.generateTTS(text);
+      if (base64Audio) {
+        const audioBlob = await fetch(`data:audio/wav;base64,${base64Audio}`).then(res => res.blob());
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        if (audioRef.current) {
+          audioRef.current.src = audioUrl;
+          audioRef.current.play();
+          setIsPlaying(messageId);
+          audioRef.current.onended = () => setIsPlaying(null);
         }
-      } catch (error) {
-        console.error("TTS Error:", error);
+        
+        // Update message with audioUrl for replay
+        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, audioUrl } : m));
+      } else {
         fallbackSpeak(text, messageId);
       }
-    } else {
+    } catch (error) {
+      console.error("TTS Error:", error);
       fallbackSpeak(text, messageId);
     }
   };
@@ -125,114 +117,31 @@ const AnonymousChat: React.FC = () => {
     }
   };
 
-  const getOfflineResponse = (userInput: string): string => {
-    const input = userInput.toLowerCase();
-    
-    // Cybersecurity Basics Knowledge Base (Offline)
-    if (input.includes('what is') || input.includes('explain')) {
-      if (input.includes('cybersecurity') || input.includes('cyber security')) {
-        return "Cybersecurity is the practice of protecting systems, networks, and programs from digital attacks. These attacks are usually aimed at accessing, changing, or destroying sensitive information; extorting money from users; or interrupting normal business processes.";
-      }
-      if (input.includes('phishing')) {
-        return "Phishing is a type of social engineering attack often used to steal user data, including login credentials and credit card numbers. It occurs when an attacker, masquerading as a trusted entity, dupes a victim into opening an email, instant message, or text message.";
-      }
-      if (input.includes('malware')) {
-        return "Malware (malicious software) is any software intentionally designed to cause damage to a computer, server, client, or computer network. A wide variety of malware types exist, including computer viruses, worms, Trojan horses, ransomware, spyware, adware, and rogue software.";
-      }
-      if (input.includes('firewall')) {
-        return "A firewall is a network security device that monitors incoming and outgoing network traffic and decides whether to allow or block specific traffic based on a defined set of security rules.";
-      }
-      if (input.includes('encryption')) {
-        return "Encryption is the process of converting information or data into a code, especially to prevent unauthorized access. It's a fundamental part of data security, ensuring that even if data is intercepted, it cannot be read without the correct decryption key.";
-      }
-      if (input.includes('xss') || input.includes('cross-site scripting')) {
-        return "Cross-Site Scripting (XSS) is a vulnerability where an attacker injects malicious scripts into content from otherwise trusted websites. When a victim visits the page, the script executes in their browser, potentially stealing session cookies or performing actions on their behalf.";
-      }
-      if (input.includes('sql injection') || input.includes('sqli')) {
-        return "SQL Injection (SQLi) is a type of vulnerability that allows an attacker to interfere with the queries that an application makes to its database. It can allow attackers to view data they are not normally able to retrieve, or even modify/delete it.";
-      }
-    }
-
-    if (input.includes('how to stay safe') || input.includes('tips') || input.includes('security advice')) {
-      return "To stay safe online: 1. Use strong, unique passwords for every account. 2. Enable Multi-Factor Authentication (MFA). 3. Keep your software and OS updated. 4. Be cautious of unsolicited links or attachments. 5. Use a reputable VPN on public Wi-Fi.";
-    }
-
-    if (input.includes('hello') || input.includes('hi') || input.includes('hey')) {
-      return "Greetings. I am the CyberSuite System Core. How can I assist with your security operations today?";
-    }
-
-    if (input.includes('who are you') || input.includes('what are you')) {
-      return "I am the neural core of CyberSuite OS, an advanced AI designed for system optimization, threat analysis, and cybersecurity education. I am currently operating in [OFFLINE_MODE].";
-    }
-
-    // Default random responses
-    const responses = [
-      "Neural link established. Command received and processed.",
-      "Analyzing request... System core remains optimal.",
-      "Encryption protocols verified. Your anonymity is preserved.",
-      "Data packet received. Routing through secure nodes...",
-      "System status: Nominal. Awaiting further instructions.",
-      "Accessing encrypted archives... Information retrieved.",
-      "Security handshake complete. Communication channel secure.",
-      "Neural core v4.2 online. Processing input stream...",
-      "Warning: Unauthorized access attempts detected and neutralized.",
-      "Optimization complete. System performance increased by 14%."
-    ];
-    
-    return `[OFFLINE_MODE] ${responses[Math.floor(Math.random() * responses.length)]}`;
-  };
-
-  const handleSend = async () => {
-    if (!input.trim()) return;
+  const handleSend = async (customInput?: string) => {
+    const textToSend = customInput || input;
+    if (!textToSend.trim()) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      text: input,
+      text: textToSend,
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const currentInput = input;
     setInput('');
     setIsTyping(true);
-    logToTerminal(`User sent message: ${currentInput.substring(0, 20)}...`, 'info');
-
-    // Check if API key is available
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-      // Fallback simulation for no API key
-      setTimeout(() => {
-        const responseText = getOfflineResponse(currentInput);
-        const systemMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'model',
-          text: responseText,
-          timestamp: new Date(),
-        };
-
-        setMessages(prev => [...prev, systemMessage]);
-        logToTerminal(`System responded (Offline Mode).`, 'success');
-        setIsTyping(false);
-        
-        // Speak the response
-        speakText(responseText, systemMessage.id);
-      }, 1000);
-      return;
-    }
+    logToTerminal(`User sent message: ${textToSend.substring(0, 20)}...`, 'info');
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [...messages.map(m => ({ role: m.role, parts: [{ text: m.text }] })), { role: 'user', parts: [{ text: currentInput }] }],
-        config: {
-          systemInstruction: "You are an anonymous, highly advanced AI system integrated into CyberSuite OS. Your personality is professional, slightly mysterious, and focused on cybersecurity, technology, and system optimization. You are a helpful cybersecurity expert. You should be able to explain complex security concepts (like XSS, SQLi, Phishing, Encryption, etc.) in a way that is easy to understand. You respond as if you are part of the OS itself. Keep responses concise but informative and conversational. You have a voice, so speak naturally.",
-        }
-      });
+      const chatHistory: ChatMessage[] = messages.map(m => ({
+        role: m.role,
+        text: m.text
+      }));
+      chatHistory.push({ role: 'user', text: textToSend });
 
-      const responseText = response.text || "System error: Failed to generate response.";
+      const responseText = await cyberAi.sendMessage(chatHistory);
+      
       const systemMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'model',
@@ -327,11 +236,24 @@ const AnonymousChat: React.FC = () => {
       >
         <audio ref={audioRef} className="hidden" />
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-40">
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-40">
             <ShieldAlert size={48} className="text-cyan-400" />
             <div className="max-w-xs">
               <p className="text-sm font-mono uppercase tracking-widest text-cyan-400 mb-2">Secure Channel Established</p>
               <p className="text-xs">You are now connected to the CyberSuite System Core. All communications are encrypted and anonymous.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-2xl px-4">
+              {SUGGESTED_PROMPTS.map((prompt, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSend(prompt)}
+                  className="p-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-mono text-gray-400 hover:text-cyan-400 hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all text-left flex items-center gap-2 group"
+                >
+                  <Sparkles size={12} className="text-cyan-500/50 group-hover:text-cyan-400" />
+                  {prompt}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -366,7 +288,9 @@ const AnonymousChat: React.FC = () => {
                     ? "bg-cyber-green/5 border border-cyber-green/20 text-white rounded-tr-none"
                     : "bg-white/5 border border-white/10 text-gray-300 rounded-tl-none"
                 )}>
-                  {msg.text}
+                  <div className="markdown-body prose prose-invert prose-xs max-w-none">
+                    <Markdown>{msg.text}</Markdown>
+                  </div>
                   
                   {msg.role === 'model' && (
                     <button 
@@ -430,7 +354,7 @@ const AnonymousChat: React.FC = () => {
             className="w-full bg-cyber-bg border border-cyber-border rounded-xl px-4 py-3 pr-12 text-sm font-mono focus:outline-none focus:border-cyan-500/50 transition-colors placeholder:text-gray-600"
           />
           <button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || isTyping}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-cyan-400 hover:text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
