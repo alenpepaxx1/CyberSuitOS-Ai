@@ -55,21 +55,21 @@
               0 0 10px rgba(255,0,0,0.5);
 }
 
-:root.matrix {
+.matrix-theme {
   --color-cyber-green: #00ff41;
   --color-cyber-bg: #000500;
   --color-cyber-card: #001100;
   --color-cyber-border: #003b00;
 }
 
-:root.cobalt {
+.cobalt-theme {
   --color-cyber-green: #00d4ff;
   --color-cyber-bg: #000814;
   --color-cyber-card: #001d3d;
   --color-cyber-border: #003566;
 }
 
-:root.crimson {
+.crimson-theme {
   --color-cyber-green: #ff4d4d;
   --color-cyber-bg: #1a0000;
   --color-cyber-card: #2d0000;
