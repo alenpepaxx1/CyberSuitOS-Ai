@@ -1,0 +1,5 @@
+{
+  "name": "CyberSuite OS",
+  "description": "A powerful open-source cybersecurity toolkit for security professionals and enthusiasts. Includes password auditing, cryptographic utilities, network OSINT, and payload generation.",
+  "requestFramePermissions": []
+}
