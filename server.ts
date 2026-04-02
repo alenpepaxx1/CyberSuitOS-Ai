@@ -1,4 +1,5 @@
 /* COPYRIGHT ALEN PEPA */
+import "dotenv/config";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -7,6 +8,7 @@ import os from "os";
 import dns from "dns";
 import https from "https";
 import http from "http";
+import net from "net";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -150,41 +152,78 @@ async function startServer() {
       dns: {},
       headers: {},
       ssl: null,
-      whois: { status: "Simulated for privacy/performance" }
+      whois: { status: "Simulated for privacy/performance" },
+      ports: [],
+      subdomains: [],
+      tech: []
     };
 
     try {
-      // 1. DNS Lookup
+      // 1. DNS Lookup / IP Detection
       const hostname = target.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
-      try {
-        const addresses = await new Promise<string[]>((resolve, reject) => {
-          dns.resolve4(hostname, (err, addrs) => err ? reject(err) : resolve(addrs));
-        });
-        results.dns.a = addresses;
-        
+      const isIP = net.isIP(hostname);
+      
+      if (isIP) {
+        results.dns.a = [hostname];
+        results.ip = hostname;
+      } else {
         try {
-          const mx = await new Promise<any[]>((resolve, reject) => {
-            dns.resolveMx(hostname, (err, addrs) => err ? reject(err) : resolve(addrs));
+          const addresses = await new Promise<string[]>((resolve, reject) => {
+            dns.resolve4(hostname, (err, addrs) => err ? reject(err) : resolve(addrs));
           });
-          results.dns.mx = mx;
-        } catch (e) {}
+          results.dns.a = addresses;
+          results.ip = addresses[0];
+          
+          try {
+            const mx = await new Promise<any[]>((resolve, reject) => {
+              dns.resolveMx(hostname, (err, addrs) => err ? reject(err) : resolve(addrs));
+            });
+            results.dns.mx = mx;
+          } catch (e) {}
 
-        try {
-          const txt = await new Promise<string[][]>((resolve, reject) => {
-            dns.resolveTxt(hostname, (err, addrs) => err ? reject(err) : resolve(addrs));
-          });
-          results.dns.txt = txt;
-        } catch (e) {}
+          try {
+            const txt = await new Promise<string[][]>((resolve, reject) => {
+              dns.resolveTxt(hostname, (err, addrs) => err ? reject(err) : resolve(addrs));
+            });
+            results.dns.txt = txt;
+          } catch (e) {}
 
-        // Subdomain Simulation
-        const commonSubdomains = ['www', 'mail', 'dev', 'api', 'staging', 'blog', 'vpn', 'ns1', 'ns2', 'mx'];
-        results.subdomains = commonSubdomains.map(sub => `${sub}.${hostname}`).slice(0, 4 + Math.floor(Math.random() * 6));
-        
-      } catch (e) {
-        results.dns.error = "DNS resolution failed";
+          // Subdomain Simulation
+          const commonSubdomains = ['www', 'mail', 'dev', 'api', 'staging', 'blog', 'vpn', 'ns1', 'ns2', 'mx'];
+          results.subdomains = commonSubdomains.map(sub => `${sub}.${hostname}`).slice(0, 4 + Math.floor(Math.random() * 6));
+          
+        } catch (e) {
+          results.dns.error = "DNS resolution failed";
+        }
       }
 
-      // 2. HTTP Headers & SSL
+      // 2. Port Scanning (Basic)
+      const portsToScan = [80, 443, 22, 21, 25, 53, 3306, 8080, 8443, 27017, 5432];
+      
+      const scanPort = (port: number) => {
+        return new Promise((resolve) => {
+          const socket = new net.Socket();
+          socket.setTimeout(1500); // Slightly longer timeout for local/slow networks
+          socket.on('connect', () => {
+            results.ports.push({ port, status: 'open' });
+            socket.destroy();
+            resolve(null);
+          });
+          socket.on('timeout', () => {
+            socket.destroy();
+            resolve(null);
+          });
+          socket.on('error', () => {
+            socket.destroy();
+            resolve(null);
+          });
+          socket.connect(port, hostname);
+        });
+      };
+
+      await Promise.all(portsToScan.map(scanPort));
+
+      // 3. HTTP Headers & SSL
       const protocol = target.startsWith('https') ? https : http;
       const url = target.startsWith('http') ? target : `http://${target}`;
       
@@ -254,6 +293,42 @@ async function startServer() {
     res.json(results);
   });
 
+  // CVE Proxy to avoid CORS issues on localhost
+  app.get("/api/cve/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+      const response = await new Promise((resolve, reject) => {
+        const request = https.get(`https://cve.circl.lu/api/cve/${id}`, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => resolve(JSON.parse(data)));
+        });
+        request.on('error', reject);
+      });
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch CVE data" });
+    }
+  });
+
+  // CVE Search Proxy
+  app.get("/api/cve-search/:query", async (req, res) => {
+    const { query } = req.params;
+    try {
+      const response = await new Promise((resolve, reject) => {
+        const request = https.get(`https://cve.circl.lu/api/search/${query}`, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => resolve(JSON.parse(data)));
+        });
+        request.on('error', reject);
+      });
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to search CVE database" });
+    }
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -268,7 +343,32 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  // Global scan history storage
+let globalScanHistory: any[] = [
+  { target: 'enterprise-node-01.io', score: 88, type: 'Full Scan', time: '2 mins ago', user: 'cyber_ghost' },
+  { target: 'api.fintech-secure.net', score: 42, type: 'Web Scan', time: '15 mins ago', user: 'root_admin' },
+  { target: '104.21.44.12', score: 15, type: 'Infra Scan', time: '45 mins ago', user: 'sec_ops' },
+  { target: 'dev-portal.internal.cloud', score: 94, type: 'Deep Scan', time: '1 hour ago', user: 'shadow_walker' },
+];
+
+app.get('/api/global-history', (req, res) => {
+  res.json(globalScanHistory);
+});
+
+app.post('/api/global-history', express.json(), (req, res) => {
+  const { target, score, type, user } = req.body;
+  const newItem = {
+    target,
+    score,
+    type,
+    user: user || 'anonymous',
+    time: 'Just now'
+  };
+  globalScanHistory = [newItem, ...globalScanHistory].slice(0, 20);
+  res.json({ status: 'ok' });
+});
+
+app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
