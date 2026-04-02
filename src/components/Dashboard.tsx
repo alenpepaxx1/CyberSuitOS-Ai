@@ -13,6 +13,7 @@ import {
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
 import { cn } from '@/src/lib/utils';
+import { logToTerminal } from './Terminal';
 import ThreatMap from './ThreatMap';
 
 import { useSystem } from '../contexts/SystemContext';
@@ -102,53 +103,44 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-      setTimeout(() => {
-        const fallbackNews: ThreatNews[] = [
-          {
-            title: 'New Zero-Day Vulnerability in Popular Web Browser',
-            summary: 'A critical remote code execution vulnerability has been discovered in Chromium-based browsers. Users are advised to update immediately.',
-            severity: 'critical',
-            timestamp: '2 hours ago',
-            source: 'CyberSecurity Hub',
-            link: '#'
-          },
-          {
-            title: 'Major Ransomware Attack on Healthcare Provider',
-            summary: 'A large healthcare network has been hit by a sophisticated ransomware attack, disrupting patient services across multiple states.',
-            severity: 'high',
-            timestamp: '5 hours ago',
-            source: 'Threat Monitor',
-            link: '#'
-          },
-          {
-            title: 'Supply Chain Attack Targets Software Developers',
-            summary: 'Malicious packages have been found in popular package managers, targeting developers with credential-stealing malware.',
-            severity: 'high',
-            timestamp: '8 hours ago',
-            source: 'DevSecOps Daily',
-            link: '#'
-          },
-          {
-            title: 'Phishing Campaign Targets Remote Workers',
-            summary: 'A new phishing campaign is targeting remote workers with fake IT support emails, attempting to steal VPN credentials.',
-            severity: 'medium',
-            timestamp: '12 hours ago',
-            source: 'PhishTank',
-            link: '#'
-          },
-          {
-            title: 'Critical Patch Released for Enterprise Firewall',
-            summary: 'A major firewall vendor has released a critical security patch addressing multiple vulnerabilities. Admins are urged to apply it.',
-            severity: 'high',
-            timestamp: '1 day ago',
-            source: 'NetSec News',
-            link: '#'
-          }
-        ];
-        setThreatNews(fallbackNews);
-        setLastUpdated(new Date());
-        setIsLoading(false);
-      }, 1000);
+      logToTerminal('AI Core offline. Using local threat intelligence cache.', 'warn');
+      
+      const fallbackNews: ThreatNews[] = [
+        {
+          title: 'New Zero-Day Vulnerability in Popular Web Browser',
+          summary: 'A critical remote code execution vulnerability has been discovered in Chromium-based browsers. Users are advised to update immediately.',
+          severity: 'critical',
+          timestamp: '2 hours ago',
+          source: 'CyberSecurity Hub',
+          link: '#'
+        },
+        {
+          title: 'Major Ransomware Attack on Healthcare Provider',
+          summary: 'A large healthcare network has been hit by a sophisticated ransomware attack, disrupting patient services across multiple states.',
+          severity: 'high',
+          timestamp: '5 hours ago',
+          source: 'Threat Monitor',
+          link: '#'
+        },
+        {
+          title: 'Supply Chain Attack Targets Software Developers',
+          summary: 'Malicious packages have been found in popular package managers, targeting developers with credential-stealing malware.',
+          severity: 'high',
+          timestamp: '8 hours ago',
+          source: 'DevSecOps Daily',
+          link: '#'
+        },
+        {
+          title: 'Phishing Campaign Uses AI-Generated Deepfakes',
+          summary: 'A new phishing campaign is using AI-generated voice and video to impersonate corporate executives in business email compromise attacks.',
+          severity: 'medium',
+          timestamp: '12 hours ago',
+          source: 'InfoSec Insider',
+          link: '#'
+        }
+      ];
+      setThreatNews(fallbackNews);
+      setIsLoading(false);
       return;
     }
 
