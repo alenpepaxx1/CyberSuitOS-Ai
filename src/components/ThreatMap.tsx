@@ -24,9 +24,10 @@ interface MapItem {
 
 interface ThreatMapProps {
   onAction?: (toolId: string, target?: string) => void;
+  initialNodes?: MapItem[];
 }
 
-export default function ThreatMap({ onAction }: ThreatMapProps) {
+export default function ThreatMap({ onAction, initialNodes }: ThreatMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedItem, setSelectedItem] = useState<MapItem | null>(null);
   const [nodes, setNodes] = useState<MapItem[]>([]);
@@ -65,40 +66,52 @@ export default function ThreatMap({ onAction }: ThreatMapProps) {
         .attr('stroke-width', 0.5)
         .attr('class', 'country-path');
 
-      // Generate realistic nodes
-      const locations = [
-        { long: -74.006, lat: 40.7128, city: 'New York', country: 'USA' },
-        { long: 0.1278, lat: 51.5074, city: 'London', country: 'UK' },
-        { long: 139.6503, lat: 35.6762, city: 'Tokyo', country: 'Japan' },
-        { long: 37.6173, lat: 55.7558, city: 'Moscow', country: 'Russia' },
-        { long: 116.4074, lat: 39.9042, city: 'Beijing', country: 'China' },
-        { long: 151.2093, lat: -33.8688, city: 'Sydney', country: 'Australia' },
-        { long: -43.1729, lat: -22.9068, city: 'Rio de Janeiro', country: 'Brazil' },
-        { long: 18.4241, lat: -33.9249, city: 'Cape Town', country: 'South Africa' },
-        { long: 77.209, lat: 28.6139, city: 'New Delhi', country: 'India' },
-        { long: 103.8198, lat: 1.3521, city: 'Singapore', country: 'Singapore' },
-        { long: -122.4194, lat: 37.7749, city: 'San Francisco', country: 'USA' },
-        { long: 2.3522, lat: 48.8566, city: 'Paris', country: 'France' },
-        { long: 12.4964, lat: 41.9028, city: 'Rome', country: 'Italy' },
-        { long: -70.6483, lat: -33.4489, city: 'Santiago', country: 'Chile' },
-        { long: 55.2708, lat: 25.2048, city: 'Dubai', country: 'UAE' },
-      ];
+      // Use initialNodes if provided, otherwise generate random ones
+      let generatedNodes: MapItem[] = [];
+      
+      if (initialNodes && initialNodes.length > 0) {
+        generatedNodes = initialNodes.map((node, i) => ({
+          ...node,
+          id: node.id || `node-${i}`,
+          status: node.status || 'active',
+          lastSeen: node.lastSeen || 'Just now',
+          reputation: node.reputation ?? Math.floor(Math.random() * 100)
+        }));
+      } else {
+        const locations = [
+          { long: -74.006, lat: 40.7128, city: 'New York', country: 'USA' },
+          { long: 0.1278, lat: 51.5074, city: 'London', country: 'UK' },
+          { long: 139.6503, lat: 35.6762, city: 'Tokyo', country: 'Japan' },
+          { long: 37.6173, lat: 55.7558, city: 'Moscow', country: 'Russia' },
+          { long: 116.4074, lat: 39.9042, city: 'Beijing', country: 'China' },
+          { long: 151.2093, lat: -33.8688, city: 'Sydney', country: 'Australia' },
+          { long: -43.1729, lat: -22.9068, city: 'Rio de Janeiro', country: 'Brazil' },
+          { long: 18.4241, lat: -33.9249, city: 'Cape Town', country: 'South Africa' },
+          { long: 77.209, lat: 28.6139, city: 'New Delhi', country: 'India' },
+          { long: 103.8198, lat: 1.3521, city: 'Singapore', country: 'Singapore' },
+          { long: -122.4194, lat: 37.7749, city: 'San Francisco', country: 'USA' },
+          { long: 2.3522, lat: 48.8566, city: 'Paris', country: 'France' },
+          { long: 12.4964, lat: 41.9028, city: 'Rome', country: 'Italy' },
+          { long: -70.6483, lat: -33.4489, city: 'Santiago', country: 'Chile' },
+          { long: 55.2708, lat: 25.2048, city: 'Dubai', country: 'UAE' },
+        ];
 
-      const generatedNodes: MapItem[] = locations.map((loc, i) => {
-        const type = Math.random() > 0.7 ? 'attack' : 'node';
-        return {
-          id: `node-${i}`,
-          ...loc,
-          type,
-          ip: `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-          threatLevel: ['low', 'medium', 'high', 'critical'][Math.floor(Math.random() * 4)] as any,
-          status: Math.random() > 0.8 ? 'compromised' : Math.random() > 0.5 ? 'active' : 'secure',
-          lastSeen: 'Just now',
-          attackType: type === 'attack' ? ['DDoS', 'SQL Injection', 'Brute Force', 'Malware C2'][Math.floor(Math.random() * 4)] : undefined,
-          targetedPorts: type === 'attack' ? [80, 443, 22, 3389].sort(() => Math.random() - 0.5).slice(0, 2) : undefined,
-          reputation: Math.floor(Math.random() * 100)
-        };
-      });
+        generatedNodes = locations.map((loc, i) => {
+          const type = Math.random() > 0.7 ? 'attack' : 'node';
+          return {
+            id: `node-${i}`,
+            ...loc,
+            type,
+            ip: `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
+            threatLevel: ['low', 'medium', 'high', 'critical'][Math.floor(Math.random() * 4)] as any,
+            status: Math.random() > 0.8 ? 'compromised' : Math.random() > 0.5 ? 'active' : 'secure',
+            lastSeen: 'Just now',
+            attackType: type === 'attack' ? ['DDoS', 'SQL Injection', 'Brute Force', 'Malware C2'][Math.floor(Math.random() * 4)] : undefined,
+            targetedPorts: type === 'attack' ? [80, 443, 22, 3389].sort(() => Math.random() - 0.5).slice(0, 2) : undefined,
+            reputation: Math.floor(Math.random() * 100)
+          };
+        });
+      }
 
       setNodes(generatedNodes);
 
@@ -201,7 +214,7 @@ export default function ThreatMap({ onAction }: ThreatMapProps) {
         .attr('repeatCount', 'indefinite');
     });
 
-  }, []);
+  }, [initialNodes]);
 
   return (
     <div className="w-full h-full relative group">
