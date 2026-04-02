@@ -75,11 +75,17 @@ async function startServer() {
   app.get("/api/network", (req, res) => {
     const interfaces = os.networkInterfaces();
     const nodes: any[] = [
-      { id: 'gateway', type: 'router', status: 'secure', label: 'Default Gateway', ip: '172.17.0.1' },
-      { id: 'host', type: 'server', status: 'secure', label: os.hostname(), ip: '127.0.0.1' }
+      { id: 'internet', type: 'cloud', status: 'secure', label: 'Global Network', ip: '8.8.8.8' },
+      { id: 'gateway', type: 'firewall', status: 'secure', label: 'Main Firewall', ip: '172.17.0.1' },
+      { id: 'host', type: 'server', status: 'secure', label: os.hostname(), ip: '127.0.0.1' },
+      { id: 'db-01', type: 'database', status: 'secure', label: 'Core DB Cluster', ip: '10.0.0.5' },
+      { id: 'nas-01', type: 'server', status: 'vulnerable', label: 'Storage NAS', ip: '10.0.0.10' }
     ];
     const links: any[] = [
-      { source: 'gateway', target: 'host' }
+      { source: 'internet', target: 'gateway' },
+      { source: 'gateway', target: 'host' },
+      { source: 'host', target: 'db-01' },
+      { source: 'host', target: 'nas-01' }
     ];
 
     Object.entries(interfaces).forEach(([name, netInterface], index) => {
@@ -98,16 +104,29 @@ async function startServer() {
       }
     });
 
-    // Add some "discovered" neighbors
+    // Add some "discovered" neighbors and IoT devices
     const neighbors = ['172.17.0.2', '172.17.0.3', '172.17.0.4'];
     neighbors.forEach((ip, i) => {
       const id = `neighbor-${i}`;
       nodes.push({
         id,
         type: 'laptop',
-        status: Math.random() > 0.7 ? 'compromised' : 'secure',
-        label: `Neighbor ${ip}`,
+        status: Math.random() > 0.8 ? 'compromised' : 'secure',
+        label: `Workstation ${ip}`,
         ip
+      });
+      links.push({ source: 'gateway', target: id });
+    });
+
+    const iotDevices = ['Smart Camera', 'IoT Sensor Hub', 'VoIP Phone'];
+    iotDevices.forEach((label, i) => {
+      const id = `iot-${i}`;
+      nodes.push({
+        id,
+        type: 'iot',
+        status: i === 0 ? 'vulnerable' : 'secure',
+        label,
+        ip: `192.168.1.${100 + i}`
       });
       links.push({ source: 'gateway', target: id });
     });
