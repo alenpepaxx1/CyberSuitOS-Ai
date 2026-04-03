@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import * as topojson from 'topojson-client';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldAlert, ShieldCheck, Zap, Search, Globe, X, Terminal as TerminalIcon, Activity, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Zap, Search, Globe, X, Terminal as TerminalIcon, Activity, Maximize2, Minimize2, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 interface MapItem {
@@ -36,6 +36,7 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
   const [mapData, setMapData] = useState<any>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   // High-frequency "Live" simulation for visual activity
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
         svg.selectAll('g').attr('transform', event.transform);
       });
 
+    zoomRef.current = zoom;
     svg.call(zoom);
 
     // Clear previous
@@ -111,7 +113,7 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
 
     const path = d3.geoPath().projection(projection);
 
-    // 0. Draw Coordinate Grid
+    // 0. Draw Coordinate Grid & Radar
     const gridGroup = svg.append('g').attr('class', 'grid-lines').attr('opacity', 0.05);
     const graticule = d3.geoGraticule();
     gridGroup.append('path')
@@ -121,6 +123,51 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
       .attr('fill', 'none')
       .attr('stroke', '#00ff41')
       .attr('stroke-width', 0.5);
+
+    // Radar Sweep
+    const radarGroup = svg.append('g').attr('class', 'radar-sweep');
+    const defs = svg.append('defs');
+    
+    const radarLinear = defs.append('linearGradient')
+      .attr('id', 'radar-gradient-linear')
+      .attr('x1', '0%').attr('y1', '100%')
+      .attr('x2', '0%').attr('y2', '0%');
+    radarLinear.append('stop').attr('offset', '0%').attr('stop-color', '#00ff41').attr('stop-opacity', 0.8);
+    radarLinear.append('stop').attr('offset', '100%').attr('stop-color', '#00ff41').attr('stop-opacity', 0);
+
+    // Radar arc (simulating the sweep trail)
+    const arcGenerator = d3.arc()
+      .innerRadius(0)
+      .outerRadius(height)
+      .startAngle(0)
+      .endAngle(Math.PI / 4); // 45 degrees sweep
+
+    const radarArc = radarGroup.append('path')
+      .attr('d', arcGenerator as any)
+      .attr('fill', 'url(#radar-gradient-linear)')
+      .attr('opacity', 0.15)
+      .attr('transform', `translate(${width/2}, ${height/2})`);
+
+    const radarLine = radarGroup.append('line')
+      .attr('x1', width / 2)
+      .attr('y1', height / 2)
+      .attr('x2', width / 2)
+      .attr('y2', -height)
+      .attr('stroke', '#00ff41')
+      .attr('stroke-width', 1.5)
+      .attr('opacity', 0.8)
+      .style('filter', 'drop-shadow(0 0 4px #00ff41)');
+
+    const animateRadar = () => {
+      radarGroup
+        .attr('transform', `rotate(0, ${width/2}, ${height/2})`)
+        .transition()
+        .duration(4000)
+        .ease(d3.easeLinear)
+        .attr('transform', `rotate(360, ${width/2}, ${height/2})`)
+        .on('end', animateRadar);
+    };
+    animateRadar();
 
     // Draw world map (simplified)
     const countries = topojson.feature(mapData, mapData.objects.countries) as any;
@@ -411,6 +458,33 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
         });
   }, [initialNodes, initialLines, mapData]);
 
+  // Dynamic country highlighting based on active attacks
+  useEffect(() => {
+    if (!svgRef.current || !activeAttacks.length) return;
+    
+    const svg = d3.select(svgRef.current);
+    
+    svg.selectAll('.country-path')
+      .transition()
+      .duration(500)
+      .attr('fill', (d: any) => {
+        const countryName = d.properties.name;
+        const isSource = activeAttacks.some(a => a.from.country === countryName);
+        const isTarget = activeAttacks.some(a => a.to.country === countryName);
+        if (isSource) return '#ef444433';
+        if (isTarget) return '#3b82f633';
+        return '#0a0a0a';
+      })
+      .attr('stroke', (d: any) => {
+        const countryName = d.properties.name;
+        const isSource = activeAttacks.some(a => a.from.country === countryName);
+        const isTarget = activeAttacks.some(a => a.to.country === countryName);
+        if (isSource) return '#ef444466';
+        if (isTarget) return '#3b82f666';
+        return '#222';
+      });
+  }, [activeAttacks]);
+
   const toggleFullScreen = () => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
@@ -433,27 +507,40 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
       <div className="absolute bottom-4 left-4 z-30 flex gap-2">
         <button 
           onClick={() => {
-            const svg = d3.select(svgRef.current);
-            svg.transition().duration(750).call(d3.zoom<SVGSVGElement, unknown>().transform as any, d3.zoomIdentity.scale(1.5));
+            if (svgRef.current && zoomRef.current) {
+              d3.select(svgRef.current).transition().duration(500).call(zoomRef.current.scaleBy as any, 1.5);
+            }
           }}
-          className="p-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+          className="p-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all shadow-[0_0_10px_rgba(0,255,65,0.1)] hover:shadow-[0_0_15px_rgba(0,255,65,0.3)] hover:border-cyber-green/50"
           title="Zoom In"
         >
           <ZoomIn size={16} />
         </button>
         <button 
           onClick={() => {
-            const svg = d3.select(svgRef.current);
-            svg.transition().duration(750).call(d3.zoom<SVGSVGElement, unknown>().transform as any, d3.zoomIdentity);
+            if (svgRef.current && zoomRef.current) {
+              d3.select(svgRef.current).transition().duration(500).call(zoomRef.current.scaleBy as any, 0.667);
+            }
           }}
-          className="p-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
-          title="Reset Zoom"
+          className="p-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all shadow-[0_0_10px_rgba(0,255,65,0.1)] hover:shadow-[0_0_15px_rgba(0,255,65,0.3)] hover:border-cyber-green/50"
+          title="Zoom Out"
         >
           <ZoomOut size={16} />
         </button>
         <button 
+          onClick={() => {
+            if (svgRef.current && zoomRef.current) {
+              d3.select(svgRef.current).transition().duration(750).call(zoomRef.current.transform as any, d3.zoomIdentity);
+            }
+          }}
+          className="p-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all shadow-[0_0_10px_rgba(0,255,65,0.1)] hover:shadow-[0_0_15px_rgba(0,255,65,0.3)] hover:border-cyber-green/50"
+          title="Reset Zoom"
+        >
+          <RefreshCw size={16} />
+        </button>
+        <button 
           onClick={toggleFullScreen}
-          className="p-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+          className="p-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all shadow-[0_0_10px_rgba(0,255,65,0.1)] hover:shadow-[0_0_15px_rgba(0,255,65,0.3)] hover:border-cyber-green/50"
           title="Toggle Full Screen"
         >
           {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
