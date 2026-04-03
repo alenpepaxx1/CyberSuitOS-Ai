@@ -220,63 +220,54 @@ async function startServer() {
 
   // Network Topology API
   app.get("/api/network", (req, res) => {
-    const interfaces = os.networkInterfaces();
     const nodes: any[] = [
-      { id: 'internet', type: 'cloud', status: 'secure', label: 'Global Network', ip: '8.8.8.8' },
-      { id: 'gateway', type: 'firewall', status: 'secure', label: 'Main Firewall', ip: '172.17.0.1' },
-      { id: 'host', type: 'server', status: 'secure', label: os.hostname(), ip: '127.0.0.1' },
-      { id: 'db-01', type: 'database', status: 'secure', label: 'Core DB Cluster', ip: '10.0.0.5' },
-      { id: 'nas-01', type: 'server', status: 'vulnerable', label: 'Storage NAS', ip: '10.0.0.10' }
+      { id: 'internet', type: 'cloud', status: 'secure', label: 'Global WAN', ip: '8.8.8.8' },
+      { id: 'ext-fw', type: 'firewall', status: 'secure', label: 'External Edge FW', ip: '172.16.0.1' },
+      { id: 'dmz-switch', type: 'router', status: 'secure', label: 'DMZ Switch', ip: '192.168.1.1' },
+      { id: 'web-01', type: 'server', status: 'vulnerable', label: 'Public Web Server A', ip: '192.168.1.10' },
+      { id: 'web-02', type: 'server', status: 'secure', label: 'Public Web Server B', ip: '192.168.1.11' },
+      { id: 'vpn-gw', type: 'router', status: 'secure', label: 'VPN Gateway', ip: '192.168.1.20' },
+      { id: 'int-fw', type: 'firewall', status: 'secure', label: 'Internal Core FW', ip: '10.0.0.1' },
+      { id: 'core-switch', type: 'router', status: 'secure', label: 'Core Switch', ip: '10.0.0.2' },
+      { id: 'db-cluster', type: 'database', status: 'secure', label: 'Primary DB Cluster', ip: '10.0.1.50' },
+      { id: 'db-replica', type: 'database', status: 'secure', label: 'DB Replica', ip: '10.0.1.51' },
+      { id: 'app-01', type: 'server', status: 'secure', label: 'App Server 01', ip: '10.0.2.10' },
+      { id: 'app-02', type: 'server', status: 'secure', label: 'App Server 02', ip: '10.0.2.11' },
+      { id: 'nas-01', type: 'server', status: 'vulnerable', label: 'Legacy NAS', ip: '10.0.3.100' },
+      { id: 'iot-gw', type: 'iot', status: 'compromised', label: 'IoT Gateway', ip: '10.0.4.5' },
+      { id: 'iot-sensor-1', type: 'iot', status: 'compromised', label: 'HVAC Sensor A', ip: '10.0.4.10' },
+      { id: 'iot-sensor-2', type: 'iot', status: 'vulnerable', label: 'HVAC Sensor B', ip: '10.0.4.11' },
+      { id: 'workstation-vlan', type: 'router', status: 'secure', label: 'User VLAN Switch', ip: '10.1.0.1' },
+      { id: 'ws-01', type: 'laptop', status: 'secure', label: 'CEO Laptop', ip: '10.1.0.50' },
+      { id: 'ws-02', type: 'laptop', status: 'vulnerable', label: 'Dev Workstation', ip: '10.1.0.51' },
+      { id: 'ws-03', type: 'laptop', status: 'secure', label: 'HR Desktop', ip: '10.1.0.52' },
+      { id: 'ws-04', type: 'laptop', status: 'compromised', label: 'Guest Kiosk', ip: '10.1.0.99' },
     ];
     const links: any[] = [
-      { source: 'internet', target: 'gateway' },
-      { source: 'gateway', target: 'host' },
-      { source: 'host', target: 'db-01' },
-      { source: 'host', target: 'nas-01' }
+      { source: 'internet', target: 'ext-fw' },
+      { source: 'ext-fw', target: 'dmz-switch' },
+      { source: 'dmz-switch', target: 'web-01' },
+      { source: 'dmz-switch', target: 'web-02' },
+      { source: 'dmz-switch', target: 'vpn-gw' },
+      { source: 'dmz-switch', target: 'int-fw' },
+      { source: 'int-fw', target: 'core-switch' },
+      { source: 'core-switch', target: 'db-cluster' },
+      { source: 'db-cluster', target: 'db-replica' },
+      { source: 'core-switch', target: 'app-01' },
+      { source: 'core-switch', target: 'app-02' },
+      { source: 'app-01', target: 'db-cluster' },
+      { source: 'app-02', target: 'db-cluster' },
+      { source: 'core-switch', target: 'nas-01' },
+      { source: 'core-switch', target: 'iot-gw' },
+      { source: 'iot-gw', target: 'iot-sensor-1' },
+      { source: 'iot-gw', target: 'iot-sensor-2' },
+      { source: 'core-switch', target: 'workstation-vlan' },
+      { source: 'workstation-vlan', target: 'ws-01' },
+      { source: 'workstation-vlan', target: 'ws-02' },
+      { source: 'workstation-vlan', target: 'ws-03' },
+      { source: 'workstation-vlan', target: 'ws-04' },
+      { source: 'vpn-gw', target: 'workstation-vlan' }, // VPN access to user vlan
     ];
-
-    Object.entries(interfaces).forEach(([name, netInterface], index) => {
-      if (!netInterface) return;
-      const ipv4 = netInterface.find(i => i.family === 'IPv4');
-      if (ipv4) {
-        const id = `iface-${index}`;
-        nodes.push({
-          id,
-          type: 'laptop',
-          status: ipv4.internal ? 'secure' : 'vulnerable',
-          label: `${name} (${ipv4.address})`,
-          ip: ipv4.address
-        });
-        links.push({ source: 'host', target: id });
-      }
-    });
-
-    // Add some "discovered" neighbors and IoT devices
-    const neighbors = ['172.17.0.2', '172.17.0.3', '172.17.0.4'];
-    neighbors.forEach((ip, i) => {
-      const id = `neighbor-${i}`;
-      nodes.push({
-        id,
-        type: 'laptop',
-        status: Math.random() > 0.8 ? 'compromised' : 'secure',
-        label: `Workstation ${ip}`,
-        ip
-      });
-      links.push({ source: 'gateway', target: id });
-    });
-
-    const iotDevices = ['Smart Camera', 'IoT Sensor Hub', 'VoIP Phone'];
-    iotDevices.forEach((label, i) => {
-      const id = `iot-${i}`;
-      nodes.push({
-        id,
-        type: 'iot',
-        status: i === 0 ? 'vulnerable' : 'secure',
-        label,
-        ip: `192.168.1.${100 + i}`
-      });
-      links.push({ source: 'gateway', target: id });
-    });
 
     res.json({ nodes, links });
   });
