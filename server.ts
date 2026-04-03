@@ -66,7 +66,7 @@ async function startServer() {
   app.get("/api/threat-intel", async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+    if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey.includes('TODO')) {
       return res.json(fallbackThreatIntel);
     }
 
@@ -626,7 +626,7 @@ async function startServer() {
     const { contents, config } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+    if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey.includes('TODO')) {
       return res.status(503).json({ error: "AI Core offline" });
     }
 
@@ -648,6 +648,13 @@ async function startServer() {
       res.json({ text: response.text });
     } catch (error: any) {
       console.error("AI Generation Error:", error);
+      
+      // Check if it's an API key error
+      const errorMessage = error.message || "";
+      if (errorMessage.includes("API key not valid") || errorMessage.includes("400")) {
+        return res.status(503).json({ error: "AI Core offline (Invalid Key)" });
+      }
+      
       res.status(500).json({ error: error.message });
     }
   });
