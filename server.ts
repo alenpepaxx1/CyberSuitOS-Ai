@@ -47,12 +47,29 @@ async function startServer() {
     ],
     trends: [
       { time: '00:00', attacks: 45, blocked: 42 },
+      { time: '01:00', attacks: 38, blocked: 36 },
+      { time: '02:00', attacks: 35, blocked: 33 },
+      { time: '03:00', attacks: 30, blocked: 29 },
       { time: '04:00', attacks: 32, blocked: 31 },
+      { time: '05:00', attacks: 40, blocked: 38 },
+      { time: '06:00', attacks: 55, blocked: 52 },
+      { time: '07:00', attacks: 62, blocked: 59 },
       { time: '08:00', attacks: 68, blocked: 65 },
+      { time: '09:00', attacks: 85, blocked: 81 },
+      { time: '10:00', attacks: 105, blocked: 101 },
+      { time: '11:00', attacks: 118, blocked: 114 },
       { time: '12:00', attacks: 124, blocked: 120 },
+      { time: '13:00', attacks: 115, blocked: 111 },
+      { time: '14:00', attacks: 102, blocked: 98 },
+      { time: '15:00', attacks: 95, blocked: 91 },
       { time: '16:00', attacks: 85, blocked: 82 },
+      { time: '17:00', attacks: 92, blocked: 88 },
+      { time: '18:00', attacks: 110, blocked: 106 },
+      { time: '19:00', attacks: 135, blocked: 130 },
       { time: '20:00', attacks: 156, blocked: 150 },
-      { time: '23:59', attacks: 92, blocked: 89 },
+      { time: '21:00', attacks: 142, blocked: 137 },
+      { time: '22:00', attacks: 120, blocked: 116 },
+      { time: '23:00', attacks: 92, blocked: 89 },
     ],
     geo: [
       { name: 'North America', value: 45, color: '#3b82f6' },
@@ -94,12 +111,13 @@ async function startServer() {
       // Fetch Trends & Geo Data
       const trendsResponse = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Analyze current global cyber attack trends for today. 
+        contents: `Analyze current global cyber attack trends for the last 24 hours. 
+        Scrape and aggregate data from reliable cybersecurity sources (e.g., Check Point, Kaspersky, FireEye, SANS ISC).
         Return a JSON object with:
-        1. 'trends': an array of 7 objects with 'time' (HH:00) and 'attacks' (number), 'blocked' (number).
-        2. 'geo': an array of 4 objects with 'name' (Region), 'value' (percentage), 'color' (hex).
+        1. 'trends': an array of EXACTLY 24 objects, one for each hour of the last 24 hours, with 'time' (HH:00) and 'attacks' (number representing global volume), 'blocked' (number representing mitigated volume).
+        2. 'geo': an array of 4 objects with 'name' (Region), 'value' (percentage of total attacks), 'color' (hex).
         3. 'mapNodes': an array of 10 objects with 'long', 'lat', 'city', 'country', 'type' ('attack'|'node'), 'threatLevel', 'ip', 'attackType'.
-        Focus on real current hotspots (e.g., Eastern Europe, East Asia, North America).`,
+        Ensure the data reflects real-world hourly fluctuations and current global hotspots.`,
         config: { 
           responseMimeType: "application/json",
           tools: [{ googleSearch: {} }]
