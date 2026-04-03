@@ -14,6 +14,9 @@ interface SystemStats {
   freeMem: number;
 }
 
+import { auth, db, signInWithGoogle, logout as firebaseLogout, FirebaseUser } from '../firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+
 interface SystemContextType {
   stats: SystemStats | null;
   activeTool: string;
@@ -39,6 +42,11 @@ interface SystemContextType {
   setUserName: (name: string) => void;
   clearanceLevel: number;
   setClearanceLevel: (level: number) => void;
+  // Auth
+  user: FirebaseUser | null;
+  isAuthReady: boolean;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const SystemContext = createContext<SystemContextType | undefined>(undefined);
@@ -50,14 +58,84 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isSystemReady, setIsSystemReady] = useState(false);
   const [alerts, setAlerts] = useState<any[]>([]);
 
+  // Auth State
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
   // Config State
   const [theme, setTheme] = useState('default');
   const [showScanlines, setShowScanlines] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [firewallEnabled, setFirewallEnabled] = useState(true);
   const [vpnEnabled, setVpnEnabled] = useState(false);
-  const [userName, setUserName] = useState('ADMIN_ROOT');
-  const [clearanceLevel, setClearanceLevel] = useState(4);
+  const [userName, setUserName] = useState('GUEST_USER');
+  const [clearanceLevel, setClearanceLevel] = useState(1);
+
+  const syncUserProfile = async (firebaseUser: FirebaseUser) => {
+    try {
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        const newUser = {
+          uid: firebaseUser.uid,
+          displayName: firebaseUser.displayName || 'Anonymous',
+          email: firebaseUser.email,
+          photoURL: firebaseUser.photoURL,
+          role: 'user',
+          createdAt: serverTimestamp()
+        };
+        await setDoc(userDocRef, newUser);
+        setUserName(newUser.displayName);
+        setClearanceLevel(2);
+      } else {
+        const userData = userDoc.data();
+        setUserName(userData.displayName || 'Anonymous');
+        setClearanceLevel(userData.role === 'admin' ? 4 : 2);
+      }
+    } catch (error) {
+      console.error('Error syncing user profile:', error);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        syncUserProfile(firebaseUser);
+      } else {
+        setUserName('GUEST_USER');
+        setClearanceLevel(1);
+      }
+      setIsAuthReady(true);
+    });
+
+    // Fallback for offline/placeholder mode or slow connection
+    const fallbackTimer = setTimeout(() => {
+      setIsAuthReady(true);
+    }, 1500);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(fallbackTimer);
+    };
+  }, []);
+
+  const login = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await firebaseLogout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -109,7 +187,11 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       userName,
       setUserName,
       clearanceLevel,
-      setClearanceLevel
+      setClearanceLevel,
+      user,
+      isAuthReady,
+      login,
+      logout
     }}>
       {children}
     </SystemContext.Provider>
