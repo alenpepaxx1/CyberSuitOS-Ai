@@ -44,36 +44,33 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
     
     const interval = setInterval(() => {
       setActiveAttacks(prev => {
-        // Add multiple new random "simulated" attacks to keep it very busy
+        const now = Date.now();
+        // Remove attacks older than 4 seconds to make it feel like a steady, realistic flow
+        let updated = prev.filter(a => !a.isSimulated || (now - (a.timestamp || now)) < 4000);
+
+        // Add 1-2 new attacks per tick
+        const numToAdd = Math.floor(Math.random() * 2) + 1;
         const newAttacks = [];
-        const numToAdd = Math.floor(Math.random() * 3) + 1; // Add 1-3 attacks every second
         
         for (let i = 0; i < numToAdd; i++) {
-          if (prev.length + newAttacks.length < 60) {
+          if (updated.length + newAttacks.length < 35) { // Cap at 35 for readability
             const from = nodes[Math.floor(Math.random() * nodes.length)];
             const to = nodes[Math.floor(Math.random() * nodes.length)];
             if (from.id !== to.id) {
-              newAttacks.push({ from, to, isSimulated: true, id: Math.random().toString(36).substr(2, 9) });
+              newAttacks.push({ 
+                from, 
+                to, 
+                isSimulated: true, 
+                id: `sim-${Math.random().toString(36).substr(2, 9)}`,
+                timestamp: now
+              });
             }
           }
         }
         
-        let updated = [...prev, ...newAttacks];
-
-        // Remove multiple simulated attacks to maintain turnover
-        if (updated.length > 25) {
-          const simulatedIndices = updated.map((a, i) => a.isSimulated ? i : -1).filter(i => i !== -1);
-          const numToRemove = Math.min(simulatedIndices.length, Math.floor(Math.random() * 2) + 1);
-          
-          for (let i = 0; i < numToRemove; i++) {
-            const indexToRemove = Math.floor(Math.random() * simulatedIndices.length);
-            updated.splice(simulatedIndices[indexToRemove], 1);
-            simulatedIndices.splice(indexToRemove, 1);
-          }
-        }
-        return updated;
+        return [...updated, ...newAttacks];
       });
-    }, 800); // Update slightly faster than every second
+    }, 1200); // 1.2 seconds for a more "normal but true" pace
 
     return () => clearInterval(interval);
   }, [nodes]);
@@ -213,6 +210,28 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
             { long: 120.9842, lat: 14.5995, city: 'Manila', country: 'Philippines' },
             { long: 3.3792, lat: 6.5244, city: 'Lagos', country: 'Nigeria' },
             { long: 106.8456, lat: -6.2088, city: 'Jakarta', country: 'Indonesia' },
+            { long: -74.0817, lat: 4.6097, city: 'Bogota', country: 'Colombia' },
+            { long: -77.0428, lat: -12.0464, city: 'Lima', country: 'Peru' },
+            { long: 36.8219, lat: -1.2921, city: 'Nairobi', country: 'Kenya' },
+            { long: 38.7469, lat: 9.0250, city: 'Addis Ababa', country: 'Ethiopia' },
+            { long: -7.5898, lat: 33.5731, city: 'Casablanca', country: 'Morocco' },
+            { long: 46.6753, lat: 24.7136, city: 'Riyadh', country: 'Saudi Arabia' },
+            { long: 51.3890, lat: 35.6892, city: 'Tehran', country: 'Iran' },
+            { long: 72.8777, lat: 19.0760, city: 'Mumbai', country: 'India' },
+            { long: 90.4125, lat: 23.8103, city: 'Dhaka', country: 'Bangladesh' },
+            { long: 106.6297, lat: 10.8231, city: 'Ho Chi Minh', country: 'Vietnam' },
+            { long: 135.5023, lat: 34.6937, city: 'Osaka', country: 'Japan' },
+            { long: 144.9631, lat: -37.8136, city: 'Melbourne', country: 'Australia' },
+            { long: 174.7633, lat: -36.8485, city: 'Auckland', country: 'New Zealand' },
+            { long: -123.1207, lat: 49.2827, city: 'Vancouver', country: 'Canada' },
+            { long: -79.3832, lat: 43.6532, city: 'Toronto', country: 'Canada' },
+            { long: -87.6298, lat: 41.8781, city: 'Chicago', country: 'USA' },
+            { long: -80.1918, lat: 25.7617, city: 'Miami', country: 'USA' },
+            { long: -3.7038, lat: 40.4168, city: 'Madrid', country: 'Spain' },
+            { long: 13.4050, lat: 52.5200, city: 'Berlin', country: 'Germany' },
+            { long: 21.0122, lat: 52.2297, city: 'Warsaw', country: 'Poland' },
+            { long: 18.0686, lat: 59.3293, city: 'Stockholm', country: 'Sweden' },
+            { long: 30.5234, lat: 50.4501, city: 'Kyiv', country: 'Ukraine' },
           ];
 
           generatedNodes = locations.map((loc, i) => {
@@ -522,7 +541,7 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
       // Draw Attack Lines
       const dx = end[0] - start[0];
       const dy = end[1] - start[1];
-      const dr = Math.sqrt(dx * dx + dy * dy);
+      const dr = Math.sqrt(dx * dx + dy * dy) * 1.2; // Smoother arc
       const pathId = `dynamic-attack-path-${i}-${attack.id || Math.random()}`;
       const pathD = `M${start[0]},${start[1]}A${dr},${dr} 0 0,1 ${end[0]},${end[1]}`;
 
@@ -531,31 +550,31 @@ export default function ThreatMap({ onAction, initialNodes, initialLines }: Thre
         .attr('d', pathD)
         .attr('fill', 'none')
         .attr('stroke', '#ef4444')
-        .attr('stroke-width', 0.8)
+        .attr('stroke-width', 1)
         .attr('stroke-dasharray', '4,4')
-        .attr('opacity', 0.5);
+        .attr('opacity', 0.4);
 
-      // The animated particle
+      // The animated particle (Data packet)
       const particle = dynamicGroup.append('circle')
-        .attr('r', 1.5)
-        .attr('fill', '#ef4444')
-        .style('filter', 'drop-shadow(0 0 3px #ef4444)');
+        .attr('r', 2)
+        .attr('fill', '#fff')
+        .style('filter', 'drop-shadow(0 0 4px #ef4444)');
 
       particle.append('animateMotion')
-        .attr('dur', `${Math.random() * 1.5 + 1}s`)
+        .attr('dur', `2s`)
         .attr('repeatCount', 'indefinite')
         .append('mpath')
         .attr('xlink:href', `#${pathId}`);
         
-      // Add a second, trailing particle
+      // Add a second, trailing particle (Tail)
       const particle2 = dynamicGroup.append('circle')
-        .attr('r', 1)
+        .attr('r', 1.5)
         .attr('fill', '#ef4444')
-        .attr('opacity', 0.6);
+        .attr('opacity', 0.8);
 
       particle2.append('animateMotion')
-        .attr('dur', `${Math.random() * 1.5 + 1}s`)
-        .attr('begin', '0.3s')
+        .attr('dur', `2s`)
+        .attr('begin', '0.2s')
         .attr('repeatCount', 'indefinite')
         .append('mpath')
         .attr('xlink:href', `#${pathId}`);
