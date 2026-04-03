@@ -63,15 +63,22 @@ async function startServer() {
     mapNodes: []
   };
 
+  const isValidApiKey = (key: string | undefined): boolean => {
+    if (!key || key === 'undefined' || key === '' || key.includes('TODO')) return false;
+    // Basic format check: Gemini keys are usually around 39 characters
+    if (key.length < 20) return false;
+    return true;
+  };
+
   app.get("/api/threat-intel", async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey.includes('TODO')) {
+    if (!isValidApiKey(apiKey)) {
       return res.json(fallbackThreatIntel);
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: apiKey! });
       
       // Fetch News
       const newsResponse = await ai.models.generateContent({
@@ -106,8 +113,13 @@ async function startServer() {
         geo: trendsData.geo || [],
         mapNodes: trendsData.mapNodes || []
       });
-    } catch (error) {
-      console.error("Failed to fetch threat intelligence:", error);
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      if (errorMessage.includes("API key not valid") || errorMessage.includes("400")) {
+        console.warn("Threat Intel: AI Core offline (Invalid API Key). Using fallback data.");
+      } else {
+        console.error("Failed to fetch threat intelligence:", error);
+      }
       // Return fallback data instead of 500 error
       res.json(fallbackThreatIntel);
     }
@@ -626,12 +638,12 @@ async function startServer() {
     const { contents, config } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey.includes('TODO')) {
+    if (!isValidApiKey(apiKey)) {
       return res.status(503).json({ error: "AI Core offline" });
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: apiKey! });
       const modelName = config?.model || "gemini-3-flash-preview";
       
       const response = await ai.models.generateContent({
@@ -647,15 +659,16 @@ async function startServer() {
 
       res.json({ text: response.text });
     } catch (error: any) {
-      console.error("AI Generation Error:", error);
+      const errorMessage = error?.message || String(error);
       
       // Check if it's an API key error
-      const errorMessage = error.message || "";
       if (errorMessage.includes("API key not valid") || errorMessage.includes("400")) {
+        console.warn("AI Core: Generation failed (Invalid API Key).");
         return res.status(503).json({ error: "AI Core offline (Invalid Key)" });
       }
       
-      res.status(500).json({ error: error.message });
+      console.error("AI Generation Error:", error);
+      res.status(500).json({ error: errorMessage });
     }
   });
 
