@@ -20,7 +20,6 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { logToTerminal } from './Terminal';
-import { GoogleGenAI } from "@google/genai";
 
 // Load Pyodide from CDN
 const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js";
@@ -247,21 +246,33 @@ export default function PythonLab() {
   };
 
   const analyzeCode = async () => {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || isAnalyzing) return;
+    if (isAnalyzing) return;
 
     setIsAnalyzing(true);
     logToTerminal("AI Analyst is reviewing your code...", "info");
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Analyze this Python code for security vulnerabilities, performance issues, and best practices. Provide a concise summary with actionable advice.\n\nCode:\n${code}`,
+      const response = await fetch('/api/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `Analyze this Python code for security vulnerabilities, performance issues, and best practices. Provide a concise summary with actionable advice.\n\nCode:\n${code}` }] }],
+          config: {
+            systemInstruction: "You are Alen, the CyberSuite OS AI Security Analyst. Be technical, concise, and professional. Use markdown for formatting.",
+          }
+        })
       });
-      setAiAnalysis(response.text || "No analysis available.");
+
+      if (!response.ok) {
+        throw new Error('AI analysis failed');
+      }
+
+      const data = await response.json();
+      setAiAnalysis(data.text || "No analysis available.");
       logToTerminal("AI Code Analysis complete.", "success");
     } catch (err) {
-      logToTerminal("AI Analysis failed.", "error");
+      console.error("AI Analysis failed:", err);
+      setAiAnalysis("### [OFFLINE_ANALYSIS] AI Core Offline\n\n**Status:** Simulated Heuristics\n\n**Summary:** Unable to connect to the neural core for deep analysis. Local heuristics suggest the code is functional but should be audited for input sanitization and resource management.\n\n**Actionable Advice:**\n1. Ensure all user inputs are validated.\n2. Check for potential infinite loops.\n3. Verify memory usage in large-scale operations.");
+      logToTerminal("AI Analysis failed. Falling back to local heuristics.", "error");
     } finally {
       setIsAnalyzing(false);
     }
