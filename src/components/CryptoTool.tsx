@@ -15,7 +15,10 @@ import {
   EyeOff,
   Trash2,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  Brain,
+  Fingerprint,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import CryptoJS from 'crypto-js';
@@ -40,7 +43,42 @@ export default function CryptoTool() {
   const [promptValue, setPromptValue] = useState('');
   const [algorithm, setAlgorithm] = useState('SHA256');
   const [encoding, setEncoding] = useState('Base64');
+  const [encryptionAlgo, setEncryptionAlgo] = useState('AES');
   const [copied, setCopied] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+
+  const runAiAnalysis = async () => {
+    if (!input) return;
+    setIsAnalyzing(true);
+    setAiAnalysis(null);
+    logToTerminal('Initializing Neural Crypto Analysis...', 'info');
+    
+    try {
+      const response = await fetch('/api/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `Analyze this cryptographic string: "${input}". Identify if it looks like a specific hash (MD5, SHA, etc.), an encoding (Base64, Hex, etc.), or ciphertext. Provide a brief, highly technical 2-paragraph analysis of its entropy, format, and potential origin. Do not output markdown, just plain text.` }] }],
+          config: {
+            systemInstruction: "You are a CyberSuite OS Cryptography Analyzer. Be highly technical, precise, and objective. Do not use markdown.",
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error('AI Generation failed');
+
+      const resData = await response.json();
+      setAiAnalysis(resData.text);
+      logToTerminal('Neural Crypto Analysis complete.', 'success');
+    } catch (error) {
+      console.error("Failed to generate analysis:", error);
+      setAiAnalysis("Analysis failed. Neural link severed.");
+      logToTerminal('Neural Crypto Analysis failed.', 'error');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   useEffect(() => {
     if (persistKey && sessionKey) {
@@ -55,7 +93,14 @@ export default function CryptoTool() {
   const getEncrypted = () => {
     if (!input || !sessionKey || isVaultLocked) return '';
     try {
-      return CryptoJS.AES.encrypt(input, sessionKey).toString();
+      switch (encryptionAlgo) {
+        case 'AES': return CryptoJS.AES.encrypt(input, sessionKey).toString();
+        case 'DES': return CryptoJS.DES.encrypt(input, sessionKey).toString();
+        case 'TripleDES': return CryptoJS.TripleDES.encrypt(input, sessionKey).toString();
+        case 'Rabbit': return CryptoJS.Rabbit.encrypt(input, sessionKey).toString();
+        case 'RC4': return CryptoJS.RC4.encrypt(input, sessionKey).toString();
+        default: return '';
+      }
     } catch (e) {
       return 'Encryption error';
     }
@@ -64,7 +109,15 @@ export default function CryptoTool() {
   const getDecrypted = () => {
     if (!input || !sessionKey || isVaultLocked) return '';
     try {
-      const bytes = CryptoJS.AES.decrypt(input, sessionKey);
+      let bytes;
+      switch (encryptionAlgo) {
+        case 'AES': bytes = CryptoJS.AES.decrypt(input, sessionKey); break;
+        case 'DES': bytes = CryptoJS.DES.decrypt(input, sessionKey); break;
+        case 'TripleDES': bytes = CryptoJS.TripleDES.decrypt(input, sessionKey); break;
+        case 'Rabbit': bytes = CryptoJS.Rabbit.decrypt(input, sessionKey); break;
+        case 'RC4': bytes = CryptoJS.RC4.decrypt(input, sessionKey); break;
+        default: return '';
+      }
       const decrypted = bytes.toString(CryptoJS.enc.Utf8);
       if (!decrypted) throw new Error('Invalid key');
       return decrypted;
@@ -114,6 +167,7 @@ export default function CryptoTool() {
         case 'SHA256': return CryptoJS.SHA256(input).toString();
         case 'SHA512': return CryptoJS.SHA512(input).toString();
         case 'SHA3': return CryptoJS.SHA3(input).toString();
+        case 'RIPEMD160': return CryptoJS.RIPEMD160(input).toString();
         default: return '';
       }
     } catch (e) {
@@ -130,6 +184,16 @@ export default function CryptoTool() {
         return CryptoJS.enc.Hex.stringify(CryptoJS.enc.Utf8.parse(input));
       } else if (encoding === 'URL') {
         return encodeURIComponent(input);
+      } else if (encoding === 'Binary') {
+        return input.split('').map(char => char.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
+      } else if (encoding === 'ROT13') {
+        return input.replace(/[a-zA-Z]/g, (c) => {
+          const charCode = c.charCodeAt(0);
+          const isUpper = charCode <= 90;
+          const limit = isUpper ? 90 : 122;
+          const newCode = charCode + 13;
+          return String.fromCharCode(newCode <= limit ? newCode : newCode - 26);
+        });
       }
       return '';
     } catch (e) {
@@ -146,6 +210,16 @@ export default function CryptoTool() {
         return CryptoJS.enc.Utf8.stringify(CryptoJS.enc.Hex.parse(input));
       } else if (encoding === 'URL') {
         return decodeURIComponent(input);
+      } else if (encoding === 'Binary') {
+        return input.split(' ').map(bin => String.fromCharCode(parseInt(bin, 2))).join('');
+      } else if (encoding === 'ROT13') {
+        return input.replace(/[a-zA-Z]/g, (c) => {
+          const charCode = c.charCodeAt(0);
+          const isUpper = charCode <= 90;
+          const limit = isUpper ? 90 : 122;
+          const newCode = charCode + 13;
+          return String.fromCharCode(newCode <= limit ? newCode : newCode - 26);
+        });
       }
       return '';
     } catch (e) {
@@ -358,7 +432,7 @@ export default function CryptoTool() {
 
             <div className="flex flex-wrap gap-4">
               {mode === 'hash' ? (
-                ['MD5', 'SHA1', 'SHA256', 'SHA512', 'SHA3'].map((algo) => (
+                ['MD5', 'SHA1', 'SHA256', 'SHA512', 'SHA3', 'RIPEMD160'].map((algo) => (
                   <button
                     key={algo}
                     onClick={() => setAlgorithm(algo)}
@@ -373,7 +447,7 @@ export default function CryptoTool() {
                   </button>
                 ))
               ) : mode === 'encode' ? (
-                ['Base64', 'Hex', 'URL'].map((enc) => (
+                ['Base64', 'Hex', 'URL', 'Binary', 'ROT13'].map((enc) => (
                   <button
                     key={enc}
                     onClick={() => setEncoding(enc)}
@@ -388,29 +462,47 @@ export default function CryptoTool() {
                   </button>
                 ))
               ) : (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setEncryptSubMode('encrypt')}
-                    className={cn(
-                      "px-4 py-2 rounded-lg border text-xs font-mono transition-all flex items-center gap-2",
-                      encryptSubMode === 'encrypt' 
-                        ? "bg-cyber-green/10 border-cyber-green/40 text-cyber-green" 
-                        : "border-cyber-border text-gray-500 hover:border-gray-600"
-                    )}
-                  >
-                    <Lock size={12} /> ENCRYPT
-                  </button>
-                  <button
-                    onClick={() => setEncryptSubMode('decrypt')}
-                    className={cn(
-                      "px-4 py-2 rounded-lg border text-xs font-mono transition-all flex items-center gap-2",
-                      encryptSubMode === 'decrypt' 
-                        ? "bg-cyber-green/10 border-cyber-green/40 text-cyber-green" 
-                        : "border-cyber-border text-gray-500 hover:border-gray-600"
-                    )}
-                  >
-                    <Unlock size={12} /> DECRYPT
-                  </button>
+                <div className="flex flex-col gap-4 w-full">
+                  <div className="flex flex-wrap gap-2">
+                    {['AES', 'DES', 'TripleDES', 'Rabbit', 'RC4'].map((algo) => (
+                      <button
+                        key={algo}
+                        onClick={() => setEncryptionAlgo(algo)}
+                        className={cn(
+                          "px-4 py-2 rounded-lg border text-xs font-mono transition-all",
+                          encryptionAlgo === algo 
+                            ? "bg-cyber-green/10 border-cyber-green/40 text-cyber-green" 
+                            : "border-cyber-border text-gray-500 hover:border-gray-600"
+                        )}
+                      >
+                        {algo}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEncryptSubMode('encrypt')}
+                      className={cn(
+                        "px-4 py-2 rounded-lg border text-xs font-mono transition-all flex items-center gap-2",
+                        encryptSubMode === 'encrypt' 
+                          ? "bg-cyber-green/10 border-cyber-green/40 text-cyber-green" 
+                          : "border-cyber-border text-gray-500 hover:border-gray-600"
+                      )}
+                    >
+                      <Lock size={12} /> ENCRYPT
+                    </button>
+                    <button
+                      onClick={() => setEncryptSubMode('decrypt')}
+                      className={cn(
+                        "px-4 py-2 rounded-lg border text-xs font-mono transition-all flex items-center gap-2",
+                        encryptSubMode === 'decrypt' 
+                          ? "bg-cyber-green/10 border-cyber-green/40 text-cyber-green" 
+                          : "border-cyber-border text-gray-500 hover:border-gray-600"
+                      )}
+                    >
+                      <Unlock size={12} /> DECRYPT
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -450,6 +542,74 @@ export default function CryptoTool() {
                   </div>
                 </div>
               )}
+            </div>
+            
+            {/* AI Analysis Section */}
+            <div className="pt-6 border-t border-cyber-border">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Brain className="text-purple-400" size={20} />
+                  <h3 className="text-sm font-bold text-white">Neural Cipher Analysis</h3>
+                </div>
+                <button
+                  onClick={runAiAnalysis}
+                  disabled={!input || isAnalyzing}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-xs font-mono transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      ANALYZING...
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint size={14} />
+                      ANALYZE INPUT
+                    </>
+                  )}
+                </button>
+              </div>
+              
+              <AnimatePresence mode="wait">
+                {isAnalyzing ? (
+                  <motion.div
+                    key="analyzing"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="bg-black/40 border border-purple-500/30 rounded-xl p-6 flex flex-col items-center justify-center min-h-[150px]"
+                  >
+                    <div className="relative w-16 h-16 mb-4">
+                      <div className="absolute inset-0 border-2 border-purple-500/20 rounded-full animate-ping"></div>
+                      <div className="absolute inset-2 border-2 border-purple-500/40 rounded-full animate-spin"></div>
+                      <div className="absolute inset-4 border-2 border-purple-500/60 rounded-full animate-pulse"></div>
+                      <Brain className="absolute inset-0 m-auto text-purple-400" size={24} />
+                    </div>
+                    <p className="text-xs font-mono text-purple-400 animate-pulse">Establishing neural link to crypto core...</p>
+                  </motion.div>
+                ) : aiAnalysis ? (
+                  <motion.div
+                    key="result"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-black/40 border border-purple-500/30 rounded-xl p-6"
+                  >
+                    <div className="font-mono text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                      {aiAnalysis}
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="bg-black/40 border border-cyber-border border-dashed rounded-xl p-6 flex flex-col items-center justify-center min-h-[150px] text-center"
+                  >
+                    <Fingerprint className="text-gray-600 mb-2" size={24} />
+                    <p className="text-xs font-mono text-gray-500">Enter data and initialize analysis to identify cryptographic patterns.</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
