@@ -16,23 +16,62 @@ export default function Terminal() {
   const [isOpen, setIsOpen] = useState(true);
   const [isMinimized, setIsMinimized] = useState(false);
   const [input, setInput] = useState('');
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<string[]>(() => {
+    const saved = localStorage.getItem('terminal_history');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [aliases, setAliases] = useState<Record<string, string>>({
     'scan-vulns': 'scan',
-    'pswd': 'passwords'
+    'pswd': 'passwords',
+    'sys': 'status'
   });
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const COMMANDS = ['help', 'clear', 'scan', 'whoami', 'status', 'exit', 'alias', 'python'];
+  const COMMANDS = [
+    'help', 'clear', 'scan', 'whoami', 'status', 'exit', 'alias', 'python', 
+    'ls', 'cat', 'nmap', 'ssh', 'top', 'neofetch', 'date', 'uname', 'sudo'
+  ];
+
+  const FILESYSTEM: Record<string, string> = {
+    'README.txt': 'CyberSuite OS v1.0.4 - Secure Kernel. Unauthorized access is prohibited.',
+    'config.sys': 'KERNEL_MODE=SECURE\nNETWORK_ENCRYPTION=AES-256\nNEURAL_LINK=ACTIVE',
+    'passwords.db': '[ENCRYPTED DATA] - Access Denied.',
+    'logs/system.log': '2026-04-03 11:56:25: Kernel initialized.\n2026-04-03 11:56:26: Network interface eth0 up.'
+  };
+
+  const logToTerminalLocal = (message: string, level: 'info' | 'warn' | 'error' | 'success' = 'info', typeEffect = false) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const timestamp = new Date().toLocaleTimeString();
+    
+    if (typeEffect) {
+      let currentText = '';
+      const newLog: LogEntry = { id, timestamp, level, message: '' };
+      setLogs(prev => [...prev.slice(-49), newLog]);
+      
+      let i = 0;
+      const interval = setInterval(() => {
+        currentText += message[i];
+        setLogs(prev => prev.map(log => log.id === id ? { ...log, message: currentText } : log));
+        i++;
+        if (i >= message.length) clearInterval(interval);
+      }, 10);
+    } else {
+      const newLog: LogEntry = { id, timestamp, level, message };
+      setLogs(prev => [...prev.slice(-49), newLog]);
+    }
+  };
 
   const handleCommand = (cmd: string) => {
     const trimmedCmd = cmd.trim();
     if (!trimmedCmd) return;
 
-    logToTerminal(`> ${trimmedCmd}`, 'info');
-    setHistory(prev => [trimmedCmd, ...prev].slice(0, 50));
+    logToTerminalLocal(`alen@cybersuite:~$ ${trimmedCmd}`, 'info');
+    
+    const newHistory = [trimmedCmd, ...history.filter(h => h !== trimmedCmd)].slice(0, 50);
+    setHistory(newHistory);
+    localStorage.setItem('terminal_history', JSON.stringify(newHistory));
     setHistoryIndex(-1);
 
     const parts = trimmedCmd.split(' ');
@@ -43,37 +82,105 @@ export default function Terminal() {
     let resolvedCommand = baseCommand;
     if (aliases[baseCommand]) {
       resolvedCommand = aliases[baseCommand];
-      logToTerminal(`Alias resolved: ${baseCommand} -> ${resolvedCommand}`, 'info');
     }
+
+    const typeLog = (msg: string, lvl: any = 'info') => logToTerminalLocal(msg, lvl, true);
 
     switch (resolvedCommand) {
       case 'help':
-        logToTerminal('Available commands: help, clear, scan, whoami, status, exit, alias', 'info');
-        logToTerminal('Alias usage: alias add [name] [command] | alias list', 'info');
+        typeLog('CORE COMMANDS: help, clear, exit, alias, whoami, status, date, uname');
+        typeLog('SECURITY TOOLS: scan, nmap, python, passwords');
+        typeLog('FILESYSTEM: ls, cat');
+        typeLog('SYSTEM: top, neofetch, sudo');
         break;
       case 'clear':
         setLogs([]);
         break;
+      case 'ls':
+        typeLog(Object.keys(FILESYSTEM).join('  '));
+        break;
+      case 'cat':
+        if (args[0] && FILESYSTEM[args[0]]) {
+          typeLog(FILESYSTEM[args[0]]);
+        } else {
+          logToTerminalLocal(`cat: ${args[0] || 'missing operand'}: No such file or directory`, 'error');
+        }
+        break;
+      case 'nmap':
+        const target = args[0] || '127.0.0.1';
+        typeLog(`Starting Nmap 7.92 ( https://nmap.org ) at ${new Date().toISOString()}`);
+        typeLog(`Nmap scan report for ${target}`);
+        typeLog('Host is up (0.00042s latency).');
+        typeLog('Not shown: 998 closed ports');
+        typeLog('PORT     STATE SERVICE');
+        typeLog('22/tcp   open  ssh', 'success');
+        typeLog('80/tcp   open  http', 'success');
+        typeLog('443/tcp  open  https', 'success');
+        typeLog('3000/tcp open  ppp', 'success');
+        typeLog('Nmap done: 1 IP address (1 host up) scanned in 1.24 seconds');
+        break;
+      case 'ssh':
+        if (!args[0]) {
+          typeLog('Usage: ssh [user]@[host]', 'warn');
+        } else {
+          typeLog(`Connecting to ${args[0]}...`, 'warn');
+          setTimeout(() => typeLog('Connection established. Terminal multiplexer active.', 'success'), 1500);
+        }
+        break;
+      case 'top':
+        typeLog('PID  USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND');
+        typeLog('1    root      20   0   16828   9644   6644 S   0.0   0.1   0:01.24 init');
+        typeLog('42   alen      20   0  842104  42104  12404 R   4.2   2.4   0:42.12 cybersuite');
+        typeLog('102  root      20   0       0      0      0 S   0.1   0.0   0:00.04 kworker/u4:1');
+        break;
+      case 'neofetch':
+        typeLog('       .---.        USER: alen@cybersuite', 'success');
+        typeLog('      /     \\       OS: CyberSuite OS v1.0.4 x86_64', 'success');
+        typeLog('      | (O) |       KERNEL: 5.15.0-72-generic', 'success');
+        typeLog('      \\     /       UPTIME: 4 hours, 21 mins', 'success');
+        typeLog('       `---`        PACKAGES: 1242 (dpkg)', 'success');
+        typeLog('                    SHELL: zsh 5.8.1', 'success');
+        typeLog('                    CPU: Neural Core i9 @ 5.2GHz', 'success');
+        typeLog('                    MEMORY: 4.2GB / 32GB', 'success');
+        break;
+      case 'matrix':
+        typeLog('Wake up, Neo...', 'success');
+        typeLog('The Matrix has you...', 'success');
+        typeLog('Follow the white rabbit.', 'success');
+        typeLog('Knock, knock, Neo.', 'success');
+        break;
+      case 'date':
+        typeLog(new Date().toString());
+        break;
+      case 'uname':
+        typeLog('CyberSuiteOS 1.0.4-generic #1 SMP Fri Apr 3 11:56:25 UTC 2026 x86_64 GNU/Linux');
+        break;
+      case 'sudo':
+        typeLog('[sudo] password for alen: ', 'warn');
+        typeLog('Access granted. Executing with root privileges...', 'success');
+        if (args.length > 0) {
+          handleCommand(args.join(' '));
+        }
+        break;
       case 'scan':
-        logToTerminal('Initiating system-wide vulnerability scan...', 'warn');
-        setTimeout(() => logToTerminal('Scan complete. No threats found.', 'success'), 2000);
+        typeLog('Initiating system-wide vulnerability scan...', 'warn');
+        setTimeout(() => typeLog('Scan complete. No threats found.', 'success'), 2000);
         break;
       case 'whoami':
-        logToTerminal('User: Alen Pepa // Role: Security Researcher // Access: Root', 'success');
+        typeLog('User: Alen Pepa // Role: Security Researcher // Access: Root', 'success');
         break;
       case 'status':
-        logToTerminal('System: CyberSuite OS v1.0.4 // Status: Secure // Neural Link: Online', 'info');
+        typeLog('System: CyberSuite OS v1.0.4 // Status: Secure // Neural Link: Online');
         break;
       case 'exit':
         setIsOpen(false);
         break;
       case 'python':
-        logToTerminal('Initializing Python Neural Core...', 'info');
+        typeLog('Initializing Python Neural Core...');
         window.dispatchEvent(new CustomEvent('navigate-tool', { detail: { toolId: 'python-lab' } }));
         break;
       case 'passwords':
-        logToTerminal('Accessing Password Lab module...', 'info');
-        // In a real app, we might trigger a navigation event here
+        typeLog('Accessing Password Lab module...');
         window.dispatchEvent(new CustomEvent('navigate-tool', { detail: { toolId: 'passwords' } }));
         break;
       case 'alias':
@@ -81,18 +188,18 @@ export default function Terminal() {
           const aliasName = args[1].toLowerCase();
           const targetCmd = args.slice(2).join(' ');
           setAliases(prev => ({ ...prev, [aliasName]: targetCmd }));
-          logToTerminal(`Alias added: ${aliasName} -> ${targetCmd}`, 'success');
+          typeLog(`Alias added: ${aliasName} -> ${targetCmd}`, 'success');
         } else if (args[0] === 'list') {
-          logToTerminal('Current Aliases:', 'info');
+          typeLog('Current Aliases:');
           Object.entries(aliases).forEach(([name, target]) => {
-            logToTerminal(`${name} -> ${target}`, 'info');
+            typeLog(`${name} -> ${target}`);
           });
         } else {
-          logToTerminal("Usage: alias add [name] [command] | alias list", "warn");
+          typeLog("Usage: alias add [name] [command] | alias list", "warn");
         }
         break;
       default:
-        logToTerminal(`Command not found: ${resolvedCommand}. Type 'help' for options.`, 'error');
+        typeLog(`Command not found: ${resolvedCommand}. Type 'help' for options.`, 'error');
     }
     setInput('');
   };
@@ -165,10 +272,13 @@ export default function Terminal() {
       initial={{ y: 300 }}
       animate={{ y: isMinimized ? 260 : 0 }}
       className={cn(
-        "fixed bottom-8 right-8 w-[450px] bg-black/90 border border-cyber-border rounded-xl overflow-hidden z-50 shadow-2xl backdrop-blur-xl",
-        isMinimized ? "h-10" : "h-72"
+        "fixed bottom-8 right-8 w-[450px] bg-black/95 border border-cyber-border rounded-xl overflow-hidden z-50 shadow-2xl backdrop-blur-xl",
+        "before:absolute before:inset-0 before:bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] before:bg-[length:100%_2px,3px_100%] before:pointer-events-none before:z-10",
+        isMinimized ? "h-10" : "h-96"
       )}
     >
+      {/* Scanline Effect */}
+      <div className="absolute inset-0 pointer-events-none z-20 bg-[radial-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_100%),linear-gradient(transparent_0%,rgba(32,128,32,0.02)_2%,transparent_3%)] bg-[length:100%_100%,100%_100px] animate-scanline" />
       {/* Header */}
       <div className="h-10 bg-cyber-card border-b border-cyber-border flex items-center justify-between px-4 cursor-pointer" onClick={() => setIsMinimized(!isMinimized)}>
         <div className="flex items-center gap-2">
@@ -190,8 +300,15 @@ export default function Terminal() {
         <div className="h-[calc(100%-40px)] flex flex-col">
           <div 
             ref={scrollRef}
-            className="flex-1 p-4 overflow-y-auto font-mono text-[10px] space-y-1 custom-scrollbar"
+            className="flex-1 p-4 overflow-y-auto font-mono text-[10px] space-y-1 custom-scrollbar relative z-0"
           >
+            <div className="mb-4 text-cyber-green/60 leading-tight">
+              Welcome to CyberSuite OS v1.0.4 (Kernel 5.15.0-72-generic)<br/>
+              * Documentation: https://cybersuite.os/docs<br/>
+              * Support: root@cybersuite.os<br/>
+              <br/>
+              Last login: {new Date().toDateString()} from 127.0.0.1
+            </div>
             {logs.map((log) => (
               <div key={log.id} className="flex gap-2 group">
                 <span className="text-gray-600 shrink-0">[{log.timestamp}]</span>
@@ -209,8 +326,8 @@ export default function Terminal() {
             ))}
           </div>
           
-          <div className="p-2 bg-black/40 border-t border-cyber-border flex items-center gap-2">
-            <ChevronRight size={12} className="text-cyber-green shrink-0" />
+          <div className="p-2 bg-black/40 border-t border-cyber-border flex items-center gap-2 relative z-30">
+            <span className="text-cyber-green font-bold text-[10px] shrink-0">alen@cybersuite:~$</span>
             <input
               ref={inputRef}
               type="text"
