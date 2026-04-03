@@ -121,7 +121,54 @@ export default function NetworkTopology() {
       .attr('in2', 'blur')
       .attr('operator', 'over');
 
+    // Radar Gradient
+    const radarGradient = defs.append('linearGradient')
+      .attr('id', 'radar-gradient')
+      .attr('x1', '0%')
+      .attr('y1', '0%')
+      .attr('x2', '100%')
+      .attr('y2', '0%');
+    radarGradient.append('stop').attr('offset', '0%').attr('stop-color', '#06b6d4').attr('stop-opacity', 0.8);
+    radarGradient.append('stop').attr('offset', '100%').attr('stop-color', '#06b6d4').attr('stop-opacity', 0);
+
     const g = svg.append('g');
+
+    // Radar Background
+    const radarGroup = g.append('g').attr('class', 'radar-background');
+    
+    // Draw concentric circles
+    for (let i = 1; i <= 4; i++) {
+      radarGroup.append('circle')
+        .attr('cx', 0)
+        .attr('cy', 0)
+        .attr('r', i * 150)
+        .attr('fill', 'none')
+        .attr('stroke', '#06b6d4')
+        .attr('stroke-width', 0.5)
+        .attr('opacity', 0.2)
+        .attr('stroke-dasharray', i % 2 === 0 ? '4,4' : 'none');
+    }
+
+    // Draw crosshairs
+    radarGroup.append('line').attr('x1', -600).attr('y1', 0).attr('x2', 600).attr('y2', 0).attr('stroke', '#06b6d4').attr('stroke-width', 0.5).attr('opacity', 0.2);
+    radarGroup.append('line').attr('x1', 0).attr('y1', -600).attr('x2', 0).attr('y2', 600).attr('stroke', '#06b6d4').attr('stroke-width', 0.5).attr('opacity', 0.2);
+
+    // Radar sweep
+    const sweep = radarGroup.append('path')
+      .attr('d', 'M0,0 L0,-600 A600,600 0 0,1 155,-579 Z') // 15 degrees arc
+      .attr('fill', 'url(#radar-gradient)')
+      .attr('opacity', 0.4);
+
+    const animateRadar = () => {
+      sweep
+        .attr('transform', 'rotate(0)')
+        .transition()
+        .duration(4000)
+        .ease(d3.easeLinear)
+        .attr('transform', 'rotate(360)')
+        .on('end', animateRadar);
+    };
+    animateRadar();
 
     // Zoom behavior
     const zoom = d3.zoom<SVGSVGElement, unknown>()
@@ -141,44 +188,55 @@ export default function NetworkTopology() {
 
     // Links
     const link = g.append('g')
-      .selectAll('line')
+      .selectAll('path')
       .data(links)
-      .join('line')
-      .attr('stroke', '#222')
-      .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', d => (d.source as Node).status === 'compromised' || (d.target as Node).status === 'compromised' ? '4,4' : 'none');
+      .join('path')
+      .attr('id', (d, i) => `link-${i}`)
+      .attr('fill', 'none')
+      .attr('stroke', d => (d.source as Node).status === 'compromised' || (d.target as Node).status === 'compromised' ? '#ef4444' : '#333')
+      .attr('stroke-width', d => (d.source as Node).status === 'compromised' || (d.target as Node).status === 'compromised' ? 2 : 1.5)
+      .attr('stroke-dasharray', d => (d.source as Node).status === 'compromised' || (d.target as Node).status === 'compromised' ? '4,4' : 'none')
+      .attr('opacity', 0.6);
 
     // Packet Animation (Particles)
     const packets = g.append('g');
     
     const animatePackets = () => {
-      packets.selectAll('circle').remove();
+      packets.selectAll('g').remove();
       
       links.forEach((l, i) => {
         const source = l.source as Node;
         const target = l.target as Node;
         
-        if (Math.random() > 0.3) {
-          const packet = packets.append('circle')
-            .attr('r', 2)
-            .attr('fill', source.status === 'compromised' ? '#ef4444' : '#06b6d4')
+        // Add more packets for a busier network
+        if (Math.random() > 0.1) {
+          const isCompromised = source.status === 'compromised' || target.status === 'compromised';
+          const packetGroup = packets.append('g');
+          
+          const packet = packetGroup.append('circle')
+            .attr('r', isCompromised ? 3 : 2)
+            .attr('fill', isCompromised ? '#ef4444' : '#06b6d4')
             .attr('filter', 'url(#glow)');
 
-          const duration = 2000 + Math.random() * 3000;
+          const tail = packetGroup.append('circle')
+            .attr('r', isCompromised ? 2 : 1.5)
+            .attr('fill', isCompromised ? '#ef4444' : '#06b6d4')
+            .attr('opacity', 0.5);
+
+          const duration = 1.5 + Math.random() * 2; // in seconds
           
-          const repeat = () => {
-            packet
-              .attr('cx', source.x!)
-              .attr('cy', source.y!)
-              .transition()
-              .duration(duration)
-              .ease(d3.easeLinear)
-              .attr('cx', target.x!)
-              .attr('cy', target.y!)
-              .on('end', repeat);
-          };
-          
-          repeat();
+          packet.append('animateMotion')
+            .attr('dur', `${duration}s`)
+            .attr('repeatCount', 'indefinite')
+            .append('mpath')
+            .attr('xlink:href', `#link-${i}`);
+            
+          tail.append('animateMotion')
+            .attr('dur', `${duration}s`)
+            .attr('begin', '0.1s')
+            .attr('repeatCount', 'indefinite')
+            .append('mpath')
+            .attr('xlink:href', `#link-${i}`);
         }
       });
     };
@@ -198,6 +256,14 @@ export default function NetworkTopology() {
       .on('click', (event, d) => {
         event.stopPropagation();
         setSelectedNode(d);
+      })
+      .on('mouseover', function(event, d) {
+        d3.select(this).select('.node-bg').attr('fill', '#1a1a1a');
+        d3.select(this).select('.node-label').attr('fill', '#fff');
+      })
+      .on('mouseout', function(event, d) {
+        d3.select(this).select('.node-bg').attr('fill', '#0a0a0a');
+        d3.select(this).select('.node-label').attr('fill', '#888');
       });
 
     // Node outer ring (pulse for compromised)
@@ -227,6 +293,7 @@ export default function NetworkTopology() {
 
     // Node background
     node.append('circle')
+      .attr('class', 'node-bg')
       .attr('r', 22)
       .attr('fill', '#0a0a0a')
       .attr('stroke', d => {
@@ -235,7 +302,8 @@ export default function NetworkTopology() {
         return '#ef4444';
       })
       .attr('stroke-width', 2)
-      .attr('filter', 'url(#glow)');
+      .attr('filter', 'url(#glow)')
+      .style('transition', 'fill 0.3s ease');
 
     // Node Icons (using simple shapes to represent icons)
     node.each(function(d) {
@@ -264,12 +332,14 @@ export default function NetworkTopology() {
 
     // Node labels
     node.append('text')
+      .attr('class', 'node-label')
       .attr('dy', 35)
       .attr('text-anchor', 'middle')
       .text(d => d.label)
       .attr('fill', '#888')
       .attr('font-size', '10px')
-      .attr('font-family', 'monospace');
+      .attr('font-family', 'monospace')
+      .style('transition', 'fill 0.3s ease');
 
     // IP labels (only if zoomed in)
     node.append('text')
@@ -282,19 +352,17 @@ export default function NetworkTopology() {
       .attr('opacity', zoomLevel > 1.2 ? 1 : 0);
 
     simulation.on('tick', () => {
-      link
-        .attr('x1', d => (d.source as Node).x!)
-        .attr('y1', d => (d.source as Node).y!)
-        .attr('x2', d => (d.target as Node).x!)
-        .attr('y2', d => (d.target as Node).y!);
+      link.attr('d', (d: any) => {
+        const dx = d.target.x - d.source.x;
+        const dy = d.target.y - d.source.y;
+        const dr = Math.sqrt(dx * dx + dy * dy) * 1.5; // Curve radius
+        return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+      });
 
       node
         .attr('transform', d => `translate(${d.x},${d.y})`);
         
-      packets.selectAll('circle').each(function() {
-        // Packets follow the simulation tick by being re-animated or updated
-        // For performance, we just let the transition handle it, but we need to update source/target refs
-      });
+      // Packets are animated via SVG animateMotion, which automatically follows the path 'd' attribute.
     });
 
     function dragstarted(event: any) {
@@ -391,7 +459,10 @@ export default function NetworkTopology() {
       </div>
 
       {/* Main Visualization Area */}
-      <div ref={containerRef} className="flex-1 relative overflow-hidden bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-500/5 via-transparent to-transparent">
+      <div ref={containerRef} className="flex-1 relative overflow-hidden bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-900/10 via-black to-black">
+        {/* Grid Background */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#06b6d415_1px,transparent_1px),linear-gradient(to_bottom,#06b6d415_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,#000_20%,transparent_100%)] pointer-events-none" />
+        
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-20">
             <div className="flex flex-col items-center gap-4">
@@ -409,15 +480,15 @@ export default function NetworkTopology() {
         )}
 
         {isScanning && (
-          <div className="absolute inset-0 pointer-events-none z-10">
+          <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
             <motion.div 
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 2, opacity: [0, 0.5, 0] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="absolute inset-0 m-auto w-96 h-96 rounded-full border-2 border-cyan-500/30"
+              initial={{ top: '-10%' }}
+              animate={{ top: '110%' }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              className="absolute left-0 right-0 h-32 bg-gradient-to-b from-transparent via-cyan-500/10 to-cyan-500/30 border-b-2 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.4)]"
             />
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-cyan-500/20 border border-cyan-500/40 rounded-full backdrop-blur-md">
-              <span className="text-[10px] font-mono text-cyan-400 animate-pulse uppercase tracking-widest">Active Scan in Progress</span>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-cyan-500/20 border border-cyan-500/40 rounded-full backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+              <span className="text-[10px] font-mono text-cyan-400 animate-pulse uppercase tracking-widest">Active Deep Scan in Progress...</span>
             </div>
           </div>
         )}
@@ -560,6 +631,27 @@ export default function NetworkTopology() {
                       'ACTIVE BREACH DETECTED. Unauthorized access in progress. System isolation required to prevent data exfiltration.'
                     }
                   </p>
+                </div>
+
+                {/* Simulated Logs */}
+                <div className="p-3 bg-black/60 border border-white/10 rounded-xl space-y-1 h-24 overflow-hidden relative">
+                  <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-b from-black/60 to-transparent z-10" />
+                  <div className="absolute bottom-0 left-0 w-full h-4 bg-gradient-to-t from-black/60 to-transparent z-10" />
+                  <motion.div 
+                    animate={{ y: [0, -40] }} 
+                    transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+                    className="flex flex-col gap-1"
+                  >
+                    <span className="text-[8px] font-mono text-gray-500">[SYS] Initializing diagnostic routine...</span>
+                    <span className="text-[8px] font-mono text-gray-500">[NET] Pinging {selectedNode.ip}... OK</span>
+                    <span className="text-[8px] font-mono text-gray-500">[SEC] Checking firewall rules...</span>
+                    <span className={cn("text-[8px] font-mono", selectedNode.status === 'secure' ? "text-emerald-500" : "text-amber-500")}>
+                      [SEC] {selectedNode.status === 'secure' ? 'No anomalies detected.' : 'Warning: Unusual port activity.'}
+                    </span>
+                    <span className="text-[8px] font-mono text-gray-500">[SYS] Memory dump analysis complete.</span>
+                    <span className="text-[8px] font-mono text-gray-500">[NET] Connection established.</span>
+                    <span className="text-[8px] font-mono text-gray-500">[SYS] Awaiting further instructions.</span>
+                  </motion.div>
                 </div>
 
                 {/* Actions */}
