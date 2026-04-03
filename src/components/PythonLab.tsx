@@ -17,9 +17,17 @@ import {
   Copy,
   Download,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  FolderTree,
+  Wand2,
+  FileText,
+  RefreshCw
 } from 'lucide-react';
 import { logToTerminal } from './Terminal';
+import Editor from 'react-simple-code-editor';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-python';
+import 'prismjs/themes/prism-tomorrow.css';
 
 // Load Pyodide from CDN
 const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js";
@@ -29,7 +37,7 @@ interface Script {
   name: string;
   code: string;
   description: string;
-  category: 'Network' | 'Crypto' | 'Web' | 'Utility' | 'Data';
+  category: 'Network' | 'Crypto' | 'Web' | 'Utility' | 'Data' | 'AI';
 }
 
 const DEFAULT_SCRIPTS: Script[] = [
@@ -38,117 +46,28 @@ const DEFAULT_SCRIPTS: Script[] = [
     name: 'Network Scanner Pro',
     category: 'Network',
     description: 'Advanced network scanning simulation with latency and service detection.',
-    code: `import time
-import random
-
-def scan_network(subnet):
-    print(f"[*] Initializing Neural Network Scan on {subnet}...")
-    print(f"[*] Loading service signatures...")
-    time.sleep(0.5)
-    
-    hosts = []
-    for i in range(1, 10):
-        if random.random() > 0.4:
-            ip = f"{subnet}.{i}"
-            latency = round(random.uniform(10, 150), 2)
-            services = random.sample(['SSH', 'HTTP', 'HTTPS', 'FTP', 'MySQL', 'Redis'], random.randint(1, 3))
-            hosts.append({"ip": ip, "latency": latency, "services": services})
-            
-    print(f"[+] Found {len(hosts)} active hosts.")
-    print("-" * 50)
-    print(f"{'IP ADDRESS':<15} | {'LATENCY':<10} | {'SERVICES'}")
-    print("-" * 50)
-    
-    for host in hosts:
-        time.sleep(0.2)
-        services_str = ", ".join(host['services'])
-        print(f"{host['ip']:<15} | {host['latency']:<7} ms | {services_str}")
-
-scan_network("192.168.1")`
+    code: `import time\nimport random\n\ndef scan_network(subnet):\n    print(f"[*] Initializing Neural Network Scan on {subnet}...")\n    print(f"[*] Loading service signatures...")\n    time.sleep(0.5)\n    \n    hosts = []\n    for i in range(1, 10):\n        if random.random() > 0.4:\n            ip = f"{subnet}.{i}"\n            latency = round(random.uniform(10, 150), 2)\n            services = random.sample(['SSH', 'HTTP', 'HTTPS', 'FTP', 'MySQL', 'Redis'], random.randint(1, 3))\n            hosts.append({"ip": ip, "latency": latency, "services": services})\n            \n    print(f"[+] Found {len(hosts)} active hosts.")\n    print("-" * 50)\n    print(f"{'IP ADDRESS':<15} | {'LATENCY':<10} | {'SERVICES'}")\n    print("-" * 50)\n    \n    for host in hosts:\n        time.sleep(0.2)\n        services_str = ", ".join(host['services'])\n        print(f"{host['ip']:<15} | {host['latency']:<7} ms | {services_str}")\n\nscan_network("192.168.1")`
   },
   {
     id: '2',
     name: 'AES-256 Simulation',
     category: 'Crypto',
     description: 'Simulates AES encryption process with key expansion and rounds.',
-    code: `import hashlib
-import os
-
-def simulate_aes(data, key):
-    print(f"[*] Starting AES-256 Simulation...")
-    print(f"[*] Input: {data}")
-    
-    # Key Expansion
-    expanded_key = hashlib.sha256(key.encode()).hexdigest()
-    print(f"[*] Key Expanded: {expanded_key[:16]}...")
-    
-    # Rounds
-    for i in range(1, 5):
-        time_delay = 0.1
-        print(f"[>] Round {i}: SubBytes -> ShiftRows -> MixColumns -> AddRoundKey")
-        
-    # Final Result (Simulated)
-    ciphertext = hashlib.sha256((data + expanded_key).encode()).hexdigest()
-    print(f"[+] Encryption Complete.")
-    print(f"[+] Ciphertext: {ciphertext}")
-
-simulate_aes("TOP_SECRET_CARGO", "NEURAL_CORE_ALPHA")`
+    code: `import hashlib\nimport time\n\ndef simulate_aes(data, key):\n    print(f"[*] Starting AES-256 Simulation...")\n    print(f"[*] Input: {data}")\n    \n    # Key Expansion\n    expanded_key = hashlib.sha256(key.encode()).hexdigest()\n    print(f"[*] Key Expanded: {expanded_key[:16]}...")\n    \n    # Rounds\n    for i in range(1, 5):\n        time.sleep(0.1)\n        print(f"[>] Round {i}: SubBytes -> ShiftRows -> MixColumns -> AddRoundKey")\n        \n    # Final Result (Simulated)\n    ciphertext = hashlib.sha256((data + expanded_key).encode()).hexdigest()\n    print(f"[+] Encryption Complete.")\n    print(f"[+] Ciphertext: {ciphertext}")\n\nsimulate_aes("TOP_SECRET_CARGO", "NEURAL_CORE_ALPHA")`
   },
   {
     id: '3',
     name: 'Data Analysis Engine',
     category: 'Data',
     description: 'Processes system logs and generates statistical insights.',
-    code: `import random
-from collections import Counter
-
-def analyze_logs(count=100):
-    print(f"[*] Analyzing {count} system log entries...")
-    
-    event_types = ['AUTH_SUCCESS', 'AUTH_FAILURE', 'FILE_ACCESS', 'NET_CONNECT', 'SYS_UPDATE']
-    logs = [random.choice(event_types) for _ in range(count)]
-    
-    stats = Counter(logs)
-    
-    print("-" * 30)
-    print(f"{'EVENT TYPE':<15} | {'COUNT':<5} | {'PERCENT'}")
-    print("-" * 30)
-    
-    for event, count_val in stats.items():
-        percent = (count_val / count) * 100
-        print(f"{event:<15} | {count_val:<5} | {percent:>6.1f}%")
-    
-    print("-" * 30)
-    most_common = stats.most_common(1)[0]
-    print(f"[!] Critical Insight: {most_common[0]} is the dominant event.")
-
-analyze_logs(500)`
+    code: `import random\nfrom collections import Counter\n\ndef analyze_logs(count=100):\n    print(f"[*] Analyzing {count} system log entries...")\n    \n    event_types = ['AUTH_SUCCESS', 'AUTH_FAILURE', 'FILE_ACCESS', 'NET_CONNECT', 'SYS_UPDATE']\n    logs = [random.choice(event_types) for _ in range(count)]\n    \n    stats = Counter(logs)\n    \n    print("-" * 30)\n    print(f"{'EVENT TYPE':<15} | {'COUNT':<5} | {'PERCENT'}")\n    print("-" * 30)\n    \n    for event, count_val in stats.items():\n        percent = (count_val / count) * 100\n        print(f"{event:<15} | {count_val:<5} | {percent:>6.1f}%")\n    \n    print("-" * 30)\n    most_common = stats.most_common(1)[0]\n    print(f"[!] Critical Insight: {most_common[0]} is the dominant event.")\n\nanalyze_logs(500)`
   },
   {
     id: '4',
-    name: 'Web Scraper (Mock)',
-    category: 'Web',
-    description: 'Simulates scraping security advisories from a list of URLs.',
-    code: `import json
-
-def scrape_advisories():
-    print("[*] Connecting to Global Threat Database...")
-    targets = ["https://cve.mitre.org", "https://nvd.nist.gov", "https://security.google.com"]
-    
-    results = []
-    for url in targets:
-        print(f"[*] Fetching data from {url}...")
-        # In a real environment, we'd use requests/urllib
-        results.append({
-            "source": url,
-            "status": 200,
-            "findings": random.randint(5, 25)
-        })
-        
-    print("[+] Aggregated Results:")
-    print(json.dumps(results, indent=2))
-
-scrape_advisories()`
+    name: 'Blockchain Simulator',
+    category: 'Crypto',
+    description: 'Simulates a simple blockchain with proof-of-work.',
+    code: `import hashlib\nimport time\n\nclass Block:\n    def __init__(self, index, previous_hash, timestamp, data, hash):\n        self.index = index\n        self.previous_hash = previous_hash\n        self.timestamp = timestamp\n        self.data = data\n        self.hash = hash\n\ndef calculate_hash(index, previous_hash, timestamp, data):\n    value = str(index) + str(previous_hash) + str(timestamp) + str(data)\n    return hashlib.sha256(value.encode('utf-8')).hexdigest()\n\ndef create_genesis_block():\n    return Block(0, "0", int(time.time()), "Genesis Block", calculate_hash(0, "0", int(time.time()), "Genesis Block"))\n\ndef next_block(last_block, data):\n    this_index = last_block.index + 1\n    this_timestamp = int(time.time())\n    this_hash = calculate_hash(this_index, last_block.hash, this_timestamp, data)\n    return Block(this_index, last_block.hash, this_timestamp, data, this_hash)\n\n# Create the blockchain and add the genesis block\nblockchain = [create_genesis_block()]\nprevious_block = blockchain[0]\n\nprint(f"[*] Genesis Block created: {previous_block.hash}")\n\n# Add blocks to the blockchain\nnum_of_blocks_to_add = 3\nfor i in range(0, num_of_blocks_to_add):\n    time.sleep(0.5)\n    block_to_add = next_block(previous_block, f"Block #{i+1} Data")\n    blockchain.append(block_to_add)\n    previous_block = block_to_add\n    print(f"[+] Block #{block_to_add.index} added to blockchain!")\n    print(f"    Hash: {block_to_add.hash}")\n`
   }
 ];
 
@@ -163,6 +82,10 @@ export default function PythonLab() {
   const [isInstalling, setIsInstalling] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [vfsFiles, setVfsFiles] = useState<string[]>([]);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  
   const outputEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -179,11 +102,13 @@ export default function PythonLab() {
             setPyodide(py);
             setIsPyodideLoading(false);
             logToTerminal("Python Neural Core (Pyodide) initialized.", "success");
+            refreshVFS(py);
           };
         } else {
           const py = await (window as any).loadPyodide();
           setPyodide(py);
           setIsPyodideLoading(false);
+          refreshVFS(py);
         }
       } catch (err) {
         console.error("Failed to load Pyodide:", err);
@@ -199,6 +124,16 @@ export default function PythonLab() {
       outputEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [output]);
+
+  const refreshVFS = (pyInstance: any = pyodide) => {
+    if (!pyInstance) return;
+    try {
+      const files = pyInstance.FS.readdir('.');
+      setVfsFiles(files.filter((f: string) => f !== '.' && f !== '..' && f !== 'tmp' && f !== 'home' && f !== 'dev' && f !== 'proc' && f !== 'lib'));
+    } catch (e) {
+      console.error("Error reading VFS:", e);
+    }
+  };
 
   const runCode = async () => {
     if (!pyodide || isRunning) return;
@@ -217,6 +152,7 @@ export default function PythonLab() {
 
       await pyodide.runPythonAsync(code);
       logToTerminal("Python execution complete.", "success");
+      refreshVFS(); // Refresh VFS in case script created files
     } catch (err: any) {
       setOutput(prev => [...prev, `ERROR: ${err.message}`]);
       logToTerminal("Python execution failed.", "error");
@@ -267,7 +203,7 @@ export default function PythonLab() {
       }
 
       const data = await response.json();
-      setAiAnalysis(data.text || "No analysis available.");
+      setAiAnalysis(data.candidates?.[0]?.content?.parts?.[0]?.text || "No analysis available.");
       logToTerminal("AI Code Analysis complete.", "success");
     } catch (err) {
       console.error("AI Analysis failed:", err);
@@ -275,6 +211,37 @@ export default function PythonLab() {
       logToTerminal("AI Analysis failed. Falling back to local heuristics.", "error");
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const generateCode = async () => {
+    if (!aiPrompt || isGenerating) return;
+    setIsGenerating(true);
+    logToTerminal(`Neural Core generating Python script: "${aiPrompt}"...`, "info");
+    try {
+      const response = await fetch('/api/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `Write a Python script for the following request: ${aiPrompt}. Output ONLY the raw Python code, no markdown formatting, no explanation.` }] }],
+          config: {
+            systemInstruction: "You are a CyberSuite OS AI Python Developer. Output ONLY raw Python code. Do not use markdown code blocks (```).",
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error('AI Generation failed');
+      const data = await response.json();
+      let newCode = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      newCode = newCode.replace(/^```python\n/, '').replace(/^```\n/, '').replace(/```$/, '');
+      setCode(newCode);
+      setActiveScript('custom');
+      logToTerminal("Neural script generation complete.", "success");
+      setAiPrompt('');
+    } catch (err) {
+      logToTerminal("Neural generation failed.", "error");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -290,9 +257,9 @@ export default function PythonLab() {
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Code className="text-yellow-500" size={32} />
-            Python Scripting Lab
+            Advanced Python Lab
           </h1>
-          <p className="text-gray-500">Write, test, and execute Python scripts directly in your secure environment.</p>
+          <p className="text-gray-500">Write, test, and execute Python scripts with Neural AI Assistance.</p>
         </div>
         
         <div className="flex items-center gap-3">
@@ -311,7 +278,7 @@ export default function PythonLab() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Sidebar: Scripts Library */}
+        {/* Sidebar: Scripts Library & VFS */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-cyber-card border border-cyber-border rounded-xl p-4">
             <h3 className="text-sm font-mono font-bold text-white mb-4 flex items-center gap-2">
@@ -353,7 +320,7 @@ export default function PythonLab() {
               PACKAGE_MANAGER
             </h3>
             <div className="space-y-2">
-              {['numpy', 'pandas', 'matplotlib', 'scipy'].map((pkg) => (
+              {['numpy', 'pandas', 'matplotlib', 'scipy', 'regex'].map((pkg) => (
                 <button
                   key={pkg}
                   onClick={() => installPackage(pkg)}
@@ -379,29 +346,54 @@ export default function PythonLab() {
           </div>
 
           <div className="bg-cyber-card border border-cyber-border rounded-xl p-4">
-            <h3 className="text-sm font-mono font-bold text-white mb-2 flex items-center gap-2">
-              <Sparkles size={16} className="text-yellow-500" />
-              SYSTEM_INFO
-            </h3>
-            <div className="space-y-2 text-[10px] font-mono">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Python Version:</span>
-                <span className="text-white">3.11.0 (Pyodide)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Environment:</span>
-                <span className="text-white">WASM Sandbox</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Memory Limit:</span>
-                <span className="text-white">Browser Shared</span>
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-mono font-bold text-white flex items-center gap-2">
+                <FolderTree size={16} className="text-yellow-500" />
+                VIRTUAL_FS
+              </h3>
+              <button onClick={() => refreshVFS()} className="text-gray-500 hover:text-white transition-colors">
+                <RefreshCw size={12} />
+              </button>
+            </div>
+            <div className="space-y-1 text-[10px] font-mono">
+              {vfsFiles.length === 0 ? (
+                <div className="text-gray-600 italic py-2">No files in virtual system.</div>
+              ) : (
+                vfsFiles.map((file, i) => (
+                  <div key={i} className="flex items-center gap-2 text-gray-400 py-1 px-2 rounded hover:bg-white/5">
+                    <FileText size={12} className="text-blue-400" />
+                    <span>{file}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
 
         {/* Main Editor & Output */}
         <div className="lg:col-span-3 space-y-6">
+          
+          {/* AI Code Generator */}
+          <div className="bg-cyber-card border border-cyber-border rounded-xl p-4 flex gap-3 items-center">
+            <Wand2 className="text-purple-400" size={20} />
+            <input 
+              type="text"
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="Describe a Python script for the Neural AI to generate..."
+              className="flex-1 bg-black/40 border border-cyber-border rounded-lg px-4 py-2 font-mono text-sm text-white focus:outline-none focus:border-purple-500/50 transition-colors"
+              onKeyDown={(e) => e.key === 'Enter' && generateCode()}
+            />
+            <button
+              onClick={generateCode}
+              disabled={isGenerating || !aiPrompt}
+              className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-xs font-bold font-mono transition-all disabled:opacity-50 flex items-center gap-2"
+            >
+              {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              GENERATE
+            </button>
+          </div>
+
           {/* Editor */}
           <div className="bg-cyber-card border border-cyber-border rounded-xl overflow-hidden flex flex-col h-[400px]">
             <div className="p-3 border-b border-cyber-border bg-cyber-card/50 flex items-center justify-between">
@@ -416,11 +408,11 @@ export default function PythonLab() {
               <div className="flex items-center gap-2">
                 <button 
                   onClick={analyzeCode}
-                  disabled={isAnalyzing || !process.env.GEMINI_API_KEY}
+                  disabled={isAnalyzing}
                   className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-xs font-bold hover:bg-purple-500/30 transition-colors disabled:opacity-50"
                 >
-                  {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                  AI_ANALYZE
+                  {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
+                  AUDIT_CODE
                 </button>
                 <button 
                   onClick={runCode}
@@ -432,17 +424,18 @@ export default function PythonLab() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 flex overflow-hidden">
-              <div className="w-12 bg-black/20 border-r border-cyber-border flex flex-col items-center py-6 text-[10px] font-mono text-gray-600 select-none">
-                {code.split('\n').map((_, i) => (
-                  <div key={i} className="h-5 leading-5">{i + 1}</div>
-                ))}
-              </div>
-              <textarea
+            <div className="flex-1 overflow-auto bg-[#1d1f21] custom-scrollbar relative">
+              <Editor
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
-                spellCheck={false}
-                className="flex-1 bg-cyber-bg p-6 font-mono text-sm text-gray-300 focus:outline-none resize-none custom-scrollbar leading-5"
+                onValueChange={code => setCode(code)}
+                highlight={code => Prism.highlight(code, Prism.languages.python, 'python')}
+                padding={20}
+                style={{
+                  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                  fontSize: 14,
+                  minHeight: '100%',
+                }}
+                className="editor-container"
               />
             </div>
           </div>
@@ -458,8 +451,8 @@ export default function PythonLab() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 text-purple-400">
-                    <Sparkles size={14} />
-                    <span className="text-xs font-bold uppercase tracking-wider">AI Security & Code Analysis</span>
+                    <Shield size={14} />
+                    <span className="text-xs font-bold uppercase tracking-wider">AI Security & Code Audit</span>
                   </div>
                   <button 
                     onClick={() => setAiAnalysis(null)}
@@ -468,7 +461,7 @@ export default function PythonLab() {
                     <Trash2 size={14} />
                   </button>
                 </div>
-                <div className="text-xs text-gray-400 leading-relaxed font-mono whitespace-pre-wrap">
+                <div className="text-xs text-gray-300 leading-relaxed font-mono whitespace-pre-wrap">
                   {aiAnalysis}
                 </div>
               </motion.div>
