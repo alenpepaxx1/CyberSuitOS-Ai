@@ -703,24 +703,33 @@ async function startServer() {
         return res.json(dnsRecords);
 
       case 'fuzzer':
-        // Slightly more functional fuzzer simulation
-        const fuzzerPayloads = [
-          { payload: "' OR 1=1 --", type: "SQLi" },
-          { payload: "<script>alert(1)</script>", type: "XSS" },
-          { payload: "../../../etc/passwd", type: "Path Traversal" },
-          { payload: "admin'--", type: "Auth Bypass" },
-          { payload: "{{7*7}}", type: "SSTI" },
-          { payload: "() { :;}; /bin/bash -c 'echo vulnerable'", type: "Shellshock" }
-        ];
+        const endpoints = ['/admin', '/login', '/api', '/config', '/.env', '/.git', '/backup', '/wp-admin', '/dashboard', '/server-status'];
+        const fuzzerResults: any[] = [];
         
-        const fuzzerResults = fuzzerPayloads.map(p => ({
-          payload: p.payload,
-          response_code: Math.random() > 0.8 ? 200 : 403,
-          response_time: Math.floor(Math.random() * 200) + 50,
-          anomaly_type: Math.random() > 0.7 ? `Potential ${p.type}` : "None",
-          risk_level: Math.random() > 0.7 ? (Math.random() > 0.5 ? "high" : "critical") : "low"
+        await Promise.all(endpoints.map(async (path) => {
+          try {
+            const protocol = target.startsWith('https') ? https : http;
+            const url = target.startsWith('http') ? `${target}${path}` : `http://${target}${path}`;
+            const start = Date.now();
+            const response: any = await new Promise((resolve, reject) => {
+              const req = protocol.get(url, resolve);
+              req.on('error', reject);
+              req.setTimeout(2000, () => { req.destroy(); reject(new Error('Timeout')); });
+            });
+            const duration = Date.now() - start;
+            
+            fuzzerResults.push({
+              path,
+              status: response.statusCode,
+              length: response.headers['content-length'] || 'unknown',
+              time: `${duration}ms`,
+              type: response.headers['content-type'] || 'unknown',
+              finding: response.statusCode === 200 ? 'Potential Sensitive Path' : 'None'
+            });
+          } catch (e) {
+            // Skip failed probes
+          }
         }));
-        
         return res.json(fuzzerResults);
 
       case 'nmap':
@@ -740,13 +749,6 @@ async function startServer() {
         return res.json(nmapData);
 
       case 'tech':
-        const techResults = [
-          { name: "Nginx", category: "Web Server", version: "1.18.0", confidence: 90 },
-          { name: "React", category: "Frontend Framework", version: "18.2.0", confidence: 85 },
-          { name: "Node.js", category: "Backend Environment", version: "18.x", confidence: 80 },
-          { name: "Express", category: "Backend Framework", version: "4.x", confidence: 75 }
-        ];
-        // Try to refine tech results based on headers
         try {
           const protocol = target.startsWith('https') ? https : http;
           const url = target.startsWith('http') ? target : `http://${target}`;
@@ -755,13 +757,30 @@ async function startServer() {
             req.on('error', reject);
             req.setTimeout(3000, () => { req.destroy(); reject(new Error('Timeout')); });
           });
-          const serverHeader = response.headers['server'];
-          if (serverHeader) {
-            techResults.push({ name: serverHeader, category: "Web Server", version: "Detected", confidence: 100 });
-          }
-        } catch (e) {}
-        
-        return res.json(techResults);
+          
+          const tech: any[] = [];
+          const server = response.headers['server'] || '';
+          const xPoweredBy = response.headers['x-powered-by'] || '';
+          const cookies = response.headers['set-cookie'] || [];
+          
+          if (server.includes('Apache')) tech.push({ name: 'Apache', category: 'Web Server', confidence: 95 });
+          if (server.includes('nginx')) tech.push({ name: 'Nginx', category: 'Web Server', confidence: 95 });
+          if (server.includes('Cloudflare')) tech.push({ name: 'Cloudflare', category: 'CDN', confidence: 95 });
+          if (xPoweredBy.includes('PHP')) tech.push({ name: 'PHP', category: 'Backend Language', confidence: 90 });
+          if (xPoweredBy.includes('Express')) tech.push({ name: 'Express', category: 'Backend Framework', confidence: 85 });
+          if (xPoweredBy.includes('ASP.NET')) tech.push({ name: 'ASP.NET', category: 'Backend Framework', confidence: 90 });
+          
+          const cookieStr = Array.isArray(cookies) ? cookies.join(' ') : cookies;
+          if (cookieStr.includes('PHPSESSID')) tech.push({ name: 'PHP', category: 'Backend Language', confidence: 80 });
+          if (cookieStr.includes('JSESSIONID')) tech.push({ name: 'Java/JSP', category: 'Backend Language', confidence: 80 });
+          if (cookieStr.includes('ASPSESSIONID')) tech.push({ name: 'ASP', category: 'Backend Language', confidence: 80 });
+          
+          if (tech.length === 0) tech.push({ name: 'Unknown Stack', category: 'General', confidence: 50 });
+          
+          return res.json(tech);
+        } catch (e) {
+          return res.json([{ name: 'Target Unreachable', category: 'Error', confidence: 0 }]);
+        }
 
       case 'payloads':
         const pType = (req.query.type as string || 'xss').toLowerCase();
