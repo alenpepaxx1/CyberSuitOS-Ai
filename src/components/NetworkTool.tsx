@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
-import { GoogleGenAI } from "@google/genai";
 import { useSystem } from '../contexts/SystemContext';
 
 import { logToTerminal } from './Terminal';
@@ -98,59 +97,37 @@ export default function NetworkTool() {
     }, 1500);
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-
-      if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-        setTimeout(() => {
-          const fallbackAIResult = `
-# AUTONOMOUS AI NETWORK SCAN REPORT (OFFLINE MODE)
-**Target:** ${query || result?.query || 'N/A'}
-**Timestamp:** ${new Date().toLocaleString()}
-
-## INFRASTRUCTURE ANALYSIS
-The target infrastructure appears to be stable. Standard routing protocols are in effect. 
-
-## POTENTIAL MISCONFIGURATIONS
-- **ICMP Echo:** Enabled (Potential for network mapping)
-- **Port 80/443:** Standard web service configuration detected.
-- **DNS Resolution:** Operating within normal parameters.
-
-## SECURITY SYNTHESIS
-This is a simulated AI analysis. For a comprehensive neural scan, please establish a secure link to the Gemini API.
-
----
-*CyberSuite OS Neural Core v4.2*
-          `;
-          setAiResult(fallbackAIResult);
-          logToTerminal('Autonomous AI Scan completed (Offline Mode).', 'success');
-          setAiScanning(false);
-        }, 8000); // Match the interval duration
-        return;
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
       const targetContext = result ? 
         `IP: ${result.query}, ISP: ${result.isp}, Org: ${result.org}, Country: ${result.country}, City: ${result.city}, Lat/Lon: ${result.lat}, ${result.lon}` : 
         `Target: ${query}`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `You are an autonomous cybersecurity scanner. Perform a deep analysis on the following target infrastructure context. Identify common vulnerabilities, misconfigurations, and potential attack vectors.
-        
-        Target Context: ${targetContext}
-        
-        Your report MUST include:
-        1. Infrastructure Risk Profile (Low/Medium/High/Critical)
-        2. Potential Vulnerabilities (Specific to the ISP/Org/Region if possible)
-        3. Misconfiguration Risks (e.g., DNS, Routing, Open Services)
-        4. Actionable Remediation Steps
-        5. Threat Intelligence Summary`,
-        config: {
-          systemInstruction: "You are a CyberSuite OS AI Security Scanner. Be technical, concise, and professional. Use markdown for formatting. Focus on realistic risks. If the target is a major cloud provider (Google, AWS, Azure), focus on shared responsibility model risks.",
-        }
+      const response = await fetch('/api/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `You are an autonomous cybersecurity scanner. Perform a deep analysis on the following target infrastructure context. Identify common vulnerabilities, misconfigurations, and potential attack vectors.
+          
+          Target Context: ${targetContext}
+          
+          Your report MUST include:
+          1. Infrastructure Risk Profile (Low/Medium/High/Critical)
+          2. Potential Vulnerabilities (Specific to the ISP/Org/Region if possible)
+          3. Misconfiguration Risks (e.g., DNS, Routing, Open Services)
+          4. Actionable Remediation Steps
+          5. Threat Intelligence Summary (Use real-time data if possible)` }] }],
+          config: {
+            systemInstruction: "You are a CyberSuite OS AI Security Scanner. Be technical, concise, and professional. Use markdown for formatting. Focus on realistic risks. If the target is a major cloud provider (Google, AWS, Azure), focus on shared responsibility model risks.",
+            tools: [{ googleSearch: {} }]
+          }
+        })
       });
 
-      const text = response.text || 'No analysis available.';
+      if (!response.ok) {
+        throw new Error('AI Scan failed');
+      }
+
+      const data = await response.json();
+      const text = data.text || 'No analysis available.';
       setAiResult(text);
       logToTerminal('AI Security Analysis completed successfully.', 'success');
       
