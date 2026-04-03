@@ -6,7 +6,6 @@ import {
   TrendingUp, TrendingDown, Target, Radio, ShieldAlert, ShieldCheck, MessageSquare, ExternalLink, Clock, Loader2, Terminal as TerminalIcon,
   Mail, Hash, Search, Settings, Bot, User
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -99,89 +98,21 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   const fetchThreatIntelligence = async () => {
     setIsLoading(true);
-    
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-      logToTerminal('AI Core offline. Using local threat intelligence cache.', 'warn');
-      
-      const fallbackNews: ThreatNews[] = [
-        {
-          title: 'New Zero-Day Vulnerability in Popular Web Browser',
-          summary: 'A critical remote code execution vulnerability has been discovered in Chromium-based browsers. Users are advised to update immediately.',
-          severity: 'critical',
-          timestamp: '2 hours ago',
-          source: 'CyberSecurity Hub',
-          link: '#'
-        },
-        {
-          title: 'Major Ransomware Attack on Healthcare Provider',
-          summary: 'A large healthcare network has been hit by a sophisticated ransomware attack, disrupting patient services across multiple states.',
-          severity: 'high',
-          timestamp: '5 hours ago',
-          source: 'Threat Monitor',
-          link: '#'
-        },
-        {
-          title: 'Supply Chain Attack Targets Software Developers',
-          summary: 'Malicious packages have been found in popular package managers, targeting developers with credential-stealing malware.',
-          severity: 'high',
-          timestamp: '8 hours ago',
-          source: 'DevSecOps Daily',
-          link: '#'
-        },
-        {
-          title: 'Phishing Campaign Uses AI-Generated Deepfakes',
-          summary: 'A new phishing campaign is using AI-generated voice and video to impersonate corporate executives in business email compromise attacks.',
-          severity: 'medium',
-          timestamp: '12 hours ago',
-          source: 'InfoSec Insider',
-          link: '#'
-        }
-      ];
-      setThreatNews(fallbackNews);
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      
-      // Fetch News
-      const newsResponse = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: "Generate a list of 6 current global cybersecurity threat intelligence updates from the last 24-48 hours. Return a JSON array of objects with 'title', 'summary', 'severity' (low, medium, high, critical), 'timestamp', 'source', and 'link' (real URL).",
-        config: { 
-          responseMimeType: "application/json",
-          tools: [{ googleSearch: {} }]
-        }
-      });
-      const newsData = JSON.parse(newsResponse.text || '[]');
-      setThreatNews(newsData);
-
-      // Fetch Trends & Geo Data
-      const trendsResponse = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Analyze current global cyber attack trends for today. 
-        Return a JSON object with:
-        1. 'trends': an array of 7 objects with 'time' (HH:00) and 'attacks' (number), 'blocked' (number).
-        2. 'geo': an array of 4 objects with 'name' (Region), 'value' (percentage), 'color' (hex).
-        3. 'mapNodes': an array of 10 objects with 'long', 'lat', 'city', 'country', 'type' ('attack'|'node'), 'threatLevel', 'ip', 'attackType'.
-        Focus on real current hotspots (e.g., Eastern Europe, East Asia, North America).`,
-        config: { 
-          responseMimeType: "application/json",
-          tools: [{ googleSearch: {} }]
-        }
-      });
-      const trendsData = JSON.parse(trendsResponse.text || '{}');
-      if (trendsData.trends) setAttackTrends(trendsData.trends);
-      if (trendsData.geo) setGeoData(trendsData.geo);
-      if (trendsData.mapNodes) setMapNodes(trendsData.mapNodes);
-
-      setLastUpdated(new Date());
+      const response = await fetch('/api/threat-intel');
+      if (response.ok) {
+        const data = await response.json();
+        setThreatNews(data.news || []);
+        if (data.trends?.length > 0) setAttackTrends(data.trends);
+        if (data.geo?.length > 0) setGeoData(data.geo);
+        if (data.mapNodes?.length > 0) setMapNodes(data.mapNodes);
+        setLastUpdated(new Date());
+      } else {
+        throw new Error('Backend threat intel failed');
+      }
     } catch (error) {
       console.error("Failed to fetch threat intelligence:", error);
-      // Fallback data for when API is down or quota exceeded
+      // Fallback data for when API is down
       const fallbackNews: ThreatNews[] = [
         {
           title: 'New Zero-Day Vulnerability in Popular Web Browser',
@@ -197,22 +128,6 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           severity: 'high',
           timestamp: '5 hours ago',
           source: 'Threat Monitor',
-          link: '#'
-        },
-        {
-          title: 'Supply Chain Attack Targets Software Developers',
-          summary: 'Malicious packages have been found in popular package managers, targeting developers with credential-stealing malware.',
-          severity: 'high',
-          timestamp: '8 hours ago',
-          source: 'DevSecOps Daily',
-          link: '#'
-        },
-        {
-          title: 'Phishing Campaign Uses AI-Generated Deepfakes',
-          summary: 'A new phishing campaign is using AI-generated voice and video to impersonate corporate executives in business email compromise attacks.',
-          severity: 'medium',
-          timestamp: '12 hours ago',
-          source: 'InfoSec Insider',
           link: '#'
         }
       ];
