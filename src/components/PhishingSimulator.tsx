@@ -6,7 +6,6 @@ import {
   Lock, Smartphone, Phone, QrCode, Target, BarChart3,
   Search, MousePointer2, Info, X, ChevronRight
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -50,8 +49,6 @@ export default function PhishingSimulator() {
     setActiveTab('preview');
     
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-
       const prompt = `Generate a highly realistic and advanced phishing campaign for a security training simulation.
       Target Context: ${target}
       Campaign Type: ${type}
@@ -66,67 +63,24 @@ export default function PhishingSimulator() {
       
       Make it sophisticated and tailored to the target context.`;
 
-      if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-        // Advanced fallback logic
-        setTimeout(() => {
-          const fallback: PhishingCampaign = {
-            id: Math.random().toString(36).substr(2, 9),
-            target,
-            type,
-            difficulty,
-            subject: type === 'smishing' ? "URGENT: Bank Alert" : "Action Required: System Migration",
-            content: type === 'smishing' 
-              ? "ALERT: Unusual activity detected on your account ending in 4421. Please verify your identity at: https://secure-bank-verify.com/login"
-              : `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-                  <div style="background-color: #0078d4; padding: 20px; color: white;">
-                    <h2 style="margin: 0; font-size: 18px;">Microsoft 365 Security Update</h2>
-                  </div>
-                  <div style="padding: 30px; line-height: 1.6;">
-                    <p>Dear ${target} Employee,</p>
-                    <p>As part of our ongoing commitment to security, we are migrating all user accounts to a new encrypted authentication protocol.</p>
-                    <p>Failure to migrate your account within 24 hours will result in temporary suspension of your email and cloud storage access.</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                      <a href="#" style="background-color: #0078d4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Migrate Account Now</a>
-                    </div>
-                    <p>If you have any questions, please contact the IT Help Desk at <span style="color: #0078d4;">support@microsoft-internal-security.com</span></p>
-                    <p>Thank you,<br>The IT Security Team</p>
-                  </div>
-                  <div style="background-color: #f8f8f8; padding: 15px; text-align: center; font-size: 11px; color: #888; border-top: 1px solid #eee;">
-                    This is an automated message. Please do not reply.
-                  </div>
-                </div>`,
-            redFlags: [
-              { id: '1', description: 'Urgent/Threatening language (24-hour deadline)', location: 'Body text' },
-              { id: '2', description: 'Suspicious sender domain (microsoft-internal-security.com)', location: 'Footer/Sender' },
-              { id: '3', description: 'Generic greeting', location: 'Salutation' }
-            ],
-            phishScore: 78,
-            metrics: {
-              clickRate: 15.4,
-              reportRate: 3.2,
-              compromiseRate: 8.7,
-              deptBreakdown: [
-                { dept: 'Sales', rate: 22.1 },
-                { dept: 'HR', rate: 18.5 },
-                { dept: 'Finance', rate: 12.4 },
-                { dept: 'IT', rate: 4.2 }
-              ]
-            }
-          };
-          setCampaign(fallback);
-          setIsLoading(false);
-        }, 1500);
-        return;
+      const response = await fetch('/api/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          config: {
+            responseMimeType: "application/json",
+            systemInstruction: "You are a CyberSuite OS Phishing Simulation Expert. Generate realistic, safe, and educational phishing content for corporate training. Do not generate actual malicious links or malware.",
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('AI Generation failed');
       }
 
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { responseMimeType: "application/json" }
-      });
-      
-      const data = JSON.parse(response.text || '{}');
+      const resData = await response.json();
+      const data = JSON.parse(resData.text || '{}');
       setCampaign({
         id: Math.random().toString(36).substr(2, 9),
         target,
