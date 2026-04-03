@@ -25,6 +25,7 @@
   }
 
   --animate-spin-slow: spin-slow 8s linear infinite;
+  --animate-scanline: scanline 10s linear infinite;
 }
 
 /* Permanent Copyright Protection */
