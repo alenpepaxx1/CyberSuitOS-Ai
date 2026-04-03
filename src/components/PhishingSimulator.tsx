@@ -4,7 +4,7 @@ import {
   Mail, ShieldAlert, Send, Copy, RefreshCw, 
   Eye, Terminal, Sparkles, AlertTriangle, CheckCircle2,
   Lock, Smartphone, Phone, QrCode, Target, BarChart3,
-  Search, MousePointer2, Info, X, ChevronRight
+  Search, MousePointer2, Info, X, ChevronRight, Brain, Link2, FileWarning
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -20,8 +20,9 @@ interface PhishingCampaign {
   target: string;
   subject: string;
   content: string;
-  type: 'credential-harvesting' | 'malware-delivery' | 'bec' | 'smishing' | 'vishing' | 'qr-phishing';
-  difficulty: 'low' | 'medium' | 'high';
+  type: 'credential-harvesting' | 'malware-delivery' | 'bec' | 'smishing' | 'vishing' | 'qr-phishing' | 'spear-phishing' | 'whaling';
+  difficulty: 'low' | 'medium' | 'high' | 'expert';
+  psychologicalTriggers: string[];
   redFlags: RedFlag[];
   metrics: {
     clickRate: number;
@@ -49,19 +50,20 @@ export default function PhishingSimulator() {
     setActiveTab('preview');
     
     try {
-      const prompt = `Generate a highly realistic and advanced phishing campaign for a security training simulation.
-      Target Context: ${target}
+      const prompt = `Generate a highly realistic, advanced, and sophisticated phishing campaign for a corporate security training simulation.
+      Target Context/Company: ${target}
       Campaign Type: ${type}
       Difficulty Level: ${difficulty}
       
       Return a JSON object with:
-      1. 'subject': The email subject line (or SMS/Call title).
-      2. 'content': The main content (HTML for email, Text for SMS/Call).
-      3. 'redFlags': An array of objects {id, description, location} explaining subtle signs of phishing.
-      4. 'phishScore': A rating from 1-100 of how effective this attack would be.
-      5. 'metrics': Simulated success metrics including 'clickRate', 'reportRate', 'compromiseRate' (percentages) and 'deptBreakdown' (array of {dept, rate}).
+      1. 'subject': The email subject line (or SMS/Call title). Make it highly convincing.
+      2. 'content': The main content (HTML for email, Text for SMS/Call). Use realistic corporate language, formatting, and urgency.
+      3. 'redFlags': An array of objects {id, description, location} explaining subtle signs of phishing (e.g., mismatched domains, slight urgency, unusual requests).
+      4. 'psychologicalTriggers': An array of strings describing the psychological manipulation tactics used (e.g., 'Urgency', 'Authority', 'Fear of Missing Out').
+      5. 'phishScore': A rating from 1-100 of how effective and deceptive this attack would be.
+      6. 'metrics': Simulated success metrics including 'clickRate', 'reportRate', 'compromiseRate' (percentages) and 'deptBreakdown' (array of {dept, rate}).
       
-      Make it sophisticated and tailored to the target context.`;
+      Make it extremely sophisticated, tailored to the target context, and difficult to spot for the specified difficulty level.`;
 
       const response = await fetch('/api/ai-generate', {
         method: 'POST',
@@ -70,7 +72,7 @@ export default function PhishingSimulator() {
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           config: {
             responseMimeType: "application/json",
-            systemInstruction: "You are a CyberSuite OS Phishing Simulation Expert. Generate realistic, safe, and educational phishing content for corporate training. Do not generate actual malicious links or malware.",
+            systemInstruction: "You are a CyberSuite OS Advanced Phishing Simulation Expert. Generate highly realistic, safe, and educational phishing content for corporate training. Emulate advanced persistent threat (APT) tactics. Do not generate actual malicious links or malware.",
           }
         })
       });
@@ -89,6 +91,7 @@ export default function PhishingSimulator() {
         subject: data.subject || 'Urgent: Action Required',
         content: data.content || '<p>Default phishing content</p>',
         redFlags: data.redFlags || [],
+        psychologicalTriggers: data.psychologicalTriggers || ['Urgency', 'Authority'],
         phishScore: data.phishScore || 50,
         metrics: data.metrics || {
           clickRate: 10,
@@ -178,11 +181,14 @@ export default function PhishingSimulator() {
             </div>
             <div className="grid grid-cols-1 gap-2">
               {[
-                { id: 'credential-harvesting', label: 'Email Phishing', icon: Mail },
+                { id: 'credential-harvesting', label: 'Credential Harvesting', icon: Link2 },
+                { id: 'malware-delivery', label: 'Malware Delivery', icon: FileWarning },
+                { id: 'spear-phishing', label: 'Spear Phishing', icon: Target },
+                { id: 'whaling', label: 'Whaling (Exec Target)', icon: ShieldAlert },
+                { id: 'bec', label: 'BEC Attack', icon: Mail },
                 { id: 'smishing', label: 'Smishing (SMS)', icon: Smartphone },
                 { id: 'vishing', label: 'Vishing (Voice)', icon: Phone },
                 { id: 'qr-phishing', label: 'QR Quishing', icon: QrCode },
-                { id: 'bec', label: 'BEC Attack', icon: ShieldAlert },
               ].map((t) => (
                 <button
                   key={t.id}
@@ -190,7 +196,7 @@ export default function PhishingSimulator() {
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all group",
                     type === t.id 
-                      ? 'bg-blue-500/10 border-blue-500/40 text-blue-400' 
+                      ? 'bg-blue-500/10 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
                       : 'bg-white/5 border-white/5 text-gray-500 hover:border-white/10 hover:text-gray-300'
                   )}
                 >
@@ -207,14 +213,14 @@ export default function PhishingSimulator() {
               <label className="text-[10px] font-mono uppercase tracking-widest">Complexity</label>
             </div>
             <div className="flex gap-2 p-1 bg-white/5 border border-white/5 rounded-xl">
-              {['low', 'medium', 'high'].map((d) => (
+              {['low', 'medium', 'high', 'expert'].map((d) => (
                 <button
                   key={d}
                   onClick={() => setDifficulty(d as any)}
                   className={cn(
                     "flex-1 py-2 rounded-lg text-[10px] font-mono uppercase transition-all",
                     difficulty === d 
-                      ? 'bg-blue-600 text-white shadow-lg' 
+                      ? d === 'expert' ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 'bg-blue-600 text-white shadow-lg' 
                       : 'text-gray-500 hover:text-gray-300'
                   )}
                 >
@@ -291,22 +297,39 @@ export default function PhishingSimulator() {
                             <div className="flex items-center gap-4">
                               <span className="text-[10px] font-mono text-gray-600 w-16 uppercase">From:</span>
                               <span className="text-sm text-blue-400 font-mono">
-                                {type === 'smishing' ? '+1 (888) 234-9921' : `security@${target.toLowerCase().replace(/\s+/g, '-')}-internal.net`}
+                                {type === 'smishing' ? '+1 (888) 234-9921' : 
+                                 type === 'vishing' ? 'Unknown Caller' :
+                                 `security@${target.toLowerCase().replace(/\s+/g, '-')}-internal.net`}
                               </span>
                             </div>
                           </div>
                           
                           <div className={cn(
-                            "p-10 min-h-[500px]",
-                            type === 'smishing' ? "bg-[#0a0a0a] flex items-center justify-center" : "bg-white"
+                            "p-10 min-h-[500px] relative",
+                            (type === 'smishing' || type === 'vishing') ? "bg-[#0a0a0a] flex items-center justify-center" : "bg-white"
                           )}>
-                            {type === 'smishing' ? (
-                              <div className="w-72 bg-[#1c1c1e] rounded-[3rem] p-4 border-[6px] border-[#3a3a3c] shadow-2xl">
-                                <div className="h-6 w-24 bg-[#3a3a3c] mx-auto rounded-full mb-8" />
-                                <div className="space-y-4">
-                                  <div className="bg-[#2c2c2e] p-4 rounded-2xl rounded-tl-none text-white text-xs leading-relaxed">
-                                    {campaign.content}
-                                  </div>
+                            {(type === 'smishing' || type === 'vishing') ? (
+                              <div className="w-72 bg-[#1c1c1e] rounded-[3rem] p-4 border-[6px] border-[#3a3a3c] shadow-2xl relative overflow-hidden">
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#3a3a3c] rounded-b-3xl z-20" />
+                                <div className="space-y-4 mt-8">
+                                  {type === 'smishing' ? (
+                                    <div className="bg-[#2c2c2e] p-4 rounded-2xl rounded-tl-none text-white text-xs leading-relaxed">
+                                      {campaign.content}
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center py-12 space-y-6">
+                                      <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center animate-pulse">
+                                        <Phone className="w-10 h-10 text-red-500" />
+                                      </div>
+                                      <div className="text-center">
+                                        <div className="text-white font-bold mb-1">Unknown Caller</div>
+                                        <div className="text-gray-400 text-xs">00:42</div>
+                                      </div>
+                                      <div className="bg-[#2c2c2e] p-4 rounded-xl text-white text-xs leading-relaxed italic text-center w-full">
+                                        "{campaign.content}"
+                                      </div>
+                                    </div>
+                                  )}
                                   <div className="text-[9px] text-center text-gray-500 font-mono">Today 10:42 AM</div>
                                 </div>
                               </div>
@@ -337,13 +360,13 @@ export default function PhishingSimulator() {
                                 className={cn(
                                   "w-full p-4 rounded-2xl border text-left transition-all flex items-start gap-4",
                                   foundFlags.includes(flag.id)
-                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                                    : "bg-white/5 border-white/5 text-gray-400 hover:border-white/10"
+                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                                    : "bg-white/5 border-white/5 text-gray-400 hover:border-white/10 hover:bg-white/10"
                                 )}
                               >
                                 <div className={cn(
-                                  "mt-1 p-1 rounded-full",
-                                  foundFlags.includes(flag.id) ? "bg-emerald-500 text-black" : "bg-gray-800 text-gray-500"
+                                  "mt-1 p-1 rounded-full transition-colors",
+                                  foundFlags.includes(flag.id) ? "bg-emerald-500 text-black shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-gray-800 text-gray-500"
                                 )}>
                                   <CheckCircle2 size={12} />
                                 </div>
@@ -356,25 +379,44 @@ export default function PhishingSimulator() {
                           </div>
                         </div>
 
-                        <div className="bg-white/5 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center text-center space-y-6">
-                          <div className="relative">
-                            <svg className="w-32 h-32 transform -rotate-90">
-                              <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/5" />
-                              <circle 
-                                cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" 
-                                strokeDasharray={364.4}
-                                strokeDashoffset={364.4 - (foundFlags.length / campaign.redFlags.length) * 364.4}
-                                className="text-blue-500 transition-all duration-1000 ease-out"
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                              <span className="text-2xl font-mono font-bold text-white">{Math.round((foundFlags.length / campaign.redFlags.length) * 100)}%</span>
-                              <span className="text-[8px] font-mono text-gray-500 uppercase">Detection</span>
+                        <div className="space-y-6">
+                          <div className="bg-white/5 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center text-center space-y-6 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500/0 via-blue-500/50 to-blue-500/0" />
+                            <div className="relative">
+                              <svg className="w-32 h-32 transform -rotate-90">
+                                <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/5" />
+                                <circle 
+                                  cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" 
+                                  strokeDasharray={364.4}
+                                  strokeDashoffset={364.4 - (foundFlags.length / campaign.redFlags.length) * 364.4}
+                                  className="text-blue-500 transition-all duration-1000 ease-out"
+                                  style={{ filter: 'drop-shadow(0 0 8px rgba(59,130,246,0.5))' }}
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <span className="text-2xl font-mono font-bold text-white">{Math.round((foundFlags.length / campaign.redFlags.length) * 100)}%</span>
+                                <span className="text-[8px] font-mono text-gray-500 uppercase">Detection</span>
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-mono text-white uppercase mb-2">Analysis Progress</h4>
+                              <p className="text-[10px] text-gray-500">You have identified {foundFlags.length} out of {campaign.redFlags.length} critical red flags in this campaign.</p>
                             </div>
                           </div>
-                          <div>
-                            <h4 className="text-xs font-mono text-white uppercase mb-2">Analysis Progress</h4>
-                            <p className="text-[10px] text-gray-500">You have identified {foundFlags.length} out of {campaign.redFlags.length} critical red flags in this campaign.</p>
+
+                          {/* Psychological Triggers */}
+                          <div className="bg-purple-500/5 border border-purple-500/20 rounded-3xl p-6">
+                            <div className="flex items-center gap-2 text-purple-400 mb-4">
+                              <Brain size={16} />
+                              <h4 className="text-[10px] font-mono uppercase tracking-widest">Psychological Triggers</h4>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {campaign.psychologicalTriggers?.map((trigger, idx) => (
+                                <span key={idx} className="px-3 py-1.5 bg-purple-500/10 border border-purple-500/30 rounded-lg text-[10px] font-mono text-purple-300">
+                                  {trigger}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       </motion.div>
