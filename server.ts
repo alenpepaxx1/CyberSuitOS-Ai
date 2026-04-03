@@ -540,6 +540,10 @@ async function startServer() {
 
     switch (tool) {
       case 'subdomains':
+        if (net.isIP(hostname)) {
+          return res.json([{ subdomain: hostname, ip: hostname, status: 'up', type: 'A' }]);
+        }
+
         const commonSubs = [
           'www', 'mail', 'dev', 'api', 'staging', 'blog', 'vpn', 'ns1', 'ns2', 'mx',
           'shop', 'store', 'app', 'portal', 'admin', 'test', 'demo', 'support', 'help',
@@ -548,11 +552,12 @@ async function startServer() {
           'git', 'svn', 'jenkins', 'jira', 'confluence', 'slack', 'mail2', 'webmail',
           'smtp', 'pop', 'imap', 'ftp', 'ssh', 'db', 'sql', 'mysql', 'postgres', 'redis',
           'elastic', 'kibana', 'grafana', 'prometheus', 'monitor', 'status', 'health',
-          'backup', 'old', 'new', 'v2', 'v3', 'api-docs', 'sandbox', 'payment', 'billing'
+          'backup', 'old', 'new', 'v2', 'v3', 'api-docs', 'sandbox', 'payment', 'billing',
+          'm', 'mobile', 'autodiscover', 'cpanel', 'whm', 'webdisk', 'ns', 'ns3', 'ns4'
         ];
         
         const foundSubdomains: any[] = [];
-        const batchSize = 10;
+        const batchSize = 15;
         
         for (let i = 0; i < commonSubs.length; i += batchSize) {
           const batch = commonSubs.slice(i, i + batchSize);
@@ -573,6 +578,10 @@ async function startServer() {
               // Not found or error
             }
           }));
+          // Small delay between batches to avoid overwhelming DNS
+          if (i + batchSize < commonSubs.length) {
+            await new Promise(r => setTimeout(r, 100));
+          }
         }
 
         if (foundSubdomains.length === 0) {
@@ -580,7 +589,12 @@ async function startServer() {
             const addrs = await dns.promises.resolve4(`www.${hostname}`);
             foundSubdomains.push({ subdomain: `www.${hostname}`, ip: addrs[0], status: 'up', type: 'A' });
           } catch (e) {
-            foundSubdomains.push({ subdomain: hostname, ip: 'Unknown', status: 'up', type: 'A' });
+            try {
+              const addrs = await dns.promises.resolve4(hostname);
+              foundSubdomains.push({ subdomain: hostname, ip: addrs[0], status: 'up', type: 'A' });
+            } catch (e2) {
+              foundSubdomains.push({ subdomain: hostname, ip: 'Unknown', status: 'up', type: 'A' });
+            }
           }
         }
         return res.json(foundSubdomains);
