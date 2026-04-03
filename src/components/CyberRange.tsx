@@ -5,7 +5,6 @@ import {
   Play, Pause, RotateCcw, ChevronRight, CheckCircle2,
   Lock, Globe, Cpu, Activity, Bug
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -114,144 +113,146 @@ export default function CyberRange() {
 
       // Simulate AI-generated logs for each step
       try {
-        const apiKey = process.env.GEMINI_API_KEY;
-        
-        if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-          // Fallback logs for offline mode
-          const fallbackLogs: Record<string, string[]> = {
-            'recon': [
-              '[INFO] Initializing passive reconnaissance module...',
-              '[SUCCESS] WHOIS data retrieved for target infrastructure.',
-              '[INFO] Scanning for open subdomains via DNS enumeration...',
-              '[SUCCESS] Identified 4 active subdomains: api.target.com, dev.target.com, mail.target.com, vpn.target.com',
-              '[WARN] ICMP Echo requests are being filtered by edge firewall.'
-            ],
-            'exploit': [
-              '[INFO] Analyzing dev.target.com for known vulnerabilities...',
-              '[SUCCESS] Identified CVE-2024-21626 (runc container escape) on staging server.',
-              '[INFO] Crafting specialized exploit payload...',
-              '[SUCCESS] Initial foothold established via container escape.',
-              '[INFO] Escalating privileges to root user...'
-            ],
-            'persist': [
-              '[INFO] Deploying stealth persistence mechanism...',
-              '[SUCCESS] Systemd service "sys-update.service" created and masked.',
-              '[INFO] Establishing encrypted C2 channel via HTTPS/443...',
-              '[SUCCESS] Heartbeat signal received from C2 server.',
-              '[INFO] Cleaning up initial access artifacts...'
-            ],
-            'exfil': [
-              '[INFO] Scanning filesystem for sensitive data patterns...',
-              '[SUCCESS] Identified 1.2GB of encrypted database backups.',
-              '[INFO] Compressing and encrypting exfiltration package...',
-              '[SUCCESS] Data exfiltration complete via fragmented DNS tunneling.',
-              '[SUCCESS] Simulation objective achieved: Full system compromise.'
-            ],
-            'delivery': [
-              '[INFO] Crafting spear-phishing email with malicious attachment...',
-              '[INFO] Sending email to 50 high-value targets...',
-              '[SUCCESS] 12 users opened the email, 3 clicked the link.',
-              '[INFO] Dropping ransomware binary "crypt_v2.exe" on victim machine.',
-              '[SUCCESS] Payload delivery successful.'
-            ],
-            'execution': [
-              '[INFO] Executing "crypt_v2.exe" with elevated privileges...',
-              '[INFO] Scanning for local files with extensions: .docx, .pdf, .jpg, .xlsx...',
-              '[SUCCESS] Found 14,203 target files.',
-              '[INFO] Starting AES-256 encryption process...',
-              '[SUCCESS] 85% of local files encrypted.'
-            ],
-            'lateral': [
-              '[INFO] Scanning local network for SMB shares...',
-              '[SUCCESS] Found 4 network drives: \\\\FS01, \\\\BACKUP, \\\\HR_DATA, \\\\FINANCE.',
-              '[INFO] Attempting credential harvesting from memory...',
-              '[SUCCESS] Domain Admin credentials recovered from LSASS.',
-              '[INFO] Propagating ransomware to network shares...'
-            ],
-            'demand': [
-              '[INFO] Generating unique decryption key for victim ID: 8829-X...',
-              '[INFO] Replacing desktop wallpaper with ransom instructions...',
-              '[SUCCESS] Ransom demand displayed: 5.0 BTC required.',
-              '[INFO] Disabling system recovery and shadow copies...',
-              '[SUCCESS] System locked. Simulation complete.'
-            ],
-            'privesc': [
-              '[INFO] Analyzing current user permissions...',
-              '[SUCCESS] Current user: j.doe (Domain User).',
-              '[INFO] Searching for misconfigured services...',
-              '[SUCCESS] Found unquoted service path in "PrintSpoolerV2".',
-              '[INFO] Exploiting service path to gain SYSTEM access...'
-            ],
-            'collection': [
-              '[INFO] Accessing Domain Controller via SYSTEM account...',
-              '[SUCCESS] Dumping NTDS.dit database.',
-              '[INFO] Searching for files containing "CONFIDENTIAL" or "SECRET"...',
-              '[SUCCESS] Found 452 sensitive documents in /Internal/Project_X.',
-              '[INFO] Harvesting browser cookies and saved passwords...'
-            ],
-            'staging': [
-              '[INFO] Creating hidden staging directory in C:\\Windows\\Temp\\_sys_...',
-              '[INFO] Compressing collected data into encrypted 7z archives...',
-              '[SUCCESS] 4.5GB of data staged for exfiltration.',
-              '[INFO] Splitting archives into 50MB chunks to avoid detection...',
-              '[SUCCESS] Staging complete.'
-            ],
-            'leak': [
-              '[INFO] Initializing data transfer to external FTP server...',
-              '[INFO] Using fragmented HTTPS requests to bypass DLP...',
-              '[SUCCESS] 2.1GB of data successfully transferred.',
-              '[INFO] Deleting staging directory and clearing event logs...',
-              '[SUCCESS] Data leakage complete. Insider threat simulation successful.'
-            ],
-            'botnet': [
-              '[INFO] Sending activation signal to 15,000 global bots...',
-              '[SUCCESS] 12,450 bots responded and are ready for deployment.',
-              '[INFO] Synchronizing attack vectors: SYN Flood, UDP Flood, HTTP GET Flood...',
-              '[SUCCESS] Botnet synchronized and waiting for target IP.'
-            ],
-            'flood': [
-              '[INFO] Launching multi-vector flood against 203.0.113.45...',
-              '[INFO] Current traffic volume: 450 Gbps.',
-              '[SUCCESS] Target edge router CPU utilization at 98%.',
-              '[INFO] Bypassing Cloudflare protection via direct IP targeting...',
-              '[SUCCESS] Traffic flood reaching target origin server.'
-            ],
-            'exhaustion': [
-              '[INFO] Target server (Nginx) connection pool exhausted.',
-              '[INFO] Database (PostgreSQL) max_connections reached.',
-              '[SUCCESS] Server response time increased to 45,000ms.',
-              '[INFO] Kernel panic detected on target web server...',
-              '[SUCCESS] Resource exhaustion achieved.'
-            ],
-            'outage': [
-              '[INFO] Monitoring target service availability...',
-              '[SUCCESS] Service status: 503 Service Unavailable.',
-              '[INFO] Global monitoring nodes reporting 100% packet loss to target.',
-              '[SUCCESS] DDoS objective achieved: Total service outage.',
-              '[INFO] Maintaining flood to prevent recovery...'
-            ]
-          };
-          
-          const newLogs = fallbackLogs[steps[i].id] || ['[INFO] Processing simulation step...'];
-          setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'completed', logs: newLogs } : s));
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
+        const response = await fetch('/api/ai-generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: `Generate 5 technical log entries for a cybersecurity simulation step: ${steps[i].title}. 
+            The scenario is: ${activeScenario.name}. Return as a JSON array of strings.` }] }],
+            config: {
+              responseMimeType: "application/json",
+              systemInstruction: "You are a CyberSuite OS Simulation Engine. Generate realistic, technical security logs for training purposes. Return ONLY a JSON array of strings.",
+            }
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('AI Generation failed');
         }
 
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: `Generate 5 technical log entries for a cybersecurity simulation step: ${steps[i].title}. 
-          The scenario is: ${activeScenario.name}. Return as a JSON array of strings.`,
-          config: { responseMimeType: "application/json" }
-        });
-        
-        const newLogs = JSON.parse(response.text || '[]');
+        const resData = await response.json();
+        const newLogs = JSON.parse(resData.text || '[]');
         setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'completed', logs: newLogs } : s));
         await new Promise(r => setTimeout(r, 2000));
       } catch (error) {
-        setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'failed', logs: ['[ERROR] AI Core connection lost.'] } : s));
-        break;
+        console.error("AI Log Generation Error:", error);
+        const fallbackLogs: Record<string, string[]> = {
+          'recon': [
+            '[INFO] Initializing passive reconnaissance module...',
+            '[SUCCESS] WHOIS data retrieved for target infrastructure.',
+            '[INFO] Scanning for open subdomains via DNS enumeration...',
+            '[SUCCESS] Identified 4 active subdomains: api.target.com, dev.target.com, mail.target.com, vpn.target.com',
+            '[WARN] ICMP Echo requests are being filtered by edge firewall.'
+          ],
+          'exploit': [
+            '[INFO] Analyzing dev.target.com for known vulnerabilities...',
+            '[SUCCESS] Identified CVE-2024-21626 (runc container escape) on staging server.',
+            '[INFO] Crafting specialized exploit payload...',
+            '[SUCCESS] Initial foothold established via container escape.',
+            '[INFO] Escalating privileges to root user...'
+          ],
+          'persist': [
+            '[INFO] Deploying stealth persistence mechanism...',
+            '[SUCCESS] Systemd service "sys-update.service" created and masked.',
+            '[INFO] Establishing encrypted C2 channel via HTTPS/443...',
+            '[SUCCESS] Heartbeat signal received from C2 server.',
+            '[INFO] Cleaning up initial access artifacts...'
+          ],
+          'exfil': [
+            '[INFO] Scanning filesystem for sensitive data patterns...',
+            '[SUCCESS] Identified 1.2GB of encrypted database backups.',
+            '[INFO] Compressing and encrypting exfiltration package...',
+            '[SUCCESS] Data exfiltration complete via fragmented DNS tunneling.',
+            '[SUCCESS] Simulation objective achieved: Full system compromise.'
+          ],
+          'delivery': [
+            '[INFO] Crafting spear-phishing email with malicious attachment...',
+            '[INFO] Sending email to 50 high-value targets...',
+            '[SUCCESS] 12 users opened the email, 3 clicked the link.',
+            '[INFO] Dropping ransomware binary "crypt_v2.exe" on victim machine.',
+            '[SUCCESS] Payload delivery successful.'
+          ],
+          'execution': [
+            '[INFO] Executing "crypt_v2.exe" with elevated privileges...',
+            '[INFO] Scanning for local files with extensions: .docx, .pdf, .jpg, .xlsx...',
+            '[SUCCESS] Found 14,203 target files.',
+            '[INFO] Starting AES-256 encryption process...',
+            '[SUCCESS] 85% of local files encrypted.'
+          ],
+          'lateral': [
+            '[INFO] Scanning local network for SMB shares...',
+            '[SUCCESS] Found 4 network drives: \\\\FS01, \\\\BACKUP, \\\\HR_DATA, \\\\FINANCE.',
+            '[INFO] Attempting credential harvesting from memory...',
+            '[SUCCESS] Domain Admin credentials recovered from LSASS.',
+            '[INFO] Propagating ransomware to network shares...'
+          ],
+          'demand': [
+            '[INFO] Generating unique decryption key for victim ID: 8829-X...',
+            '[INFO] Replacing desktop wallpaper with ransom instructions...',
+            '[SUCCESS] Ransom demand displayed: 5.0 BTC required.',
+            '[INFO] Disabling system recovery and shadow copies...',
+            '[SUCCESS] System locked. Simulation complete.'
+          ],
+          'privesc': [
+            '[INFO] Analyzing current user permissions...',
+            '[SUCCESS] Current user: j.doe (Domain User).',
+            '[INFO] Searching for misconfigured services...',
+            '[SUCCESS] Found unquoted service path in "PrintSpoolerV2".',
+            '[INFO] Exploiting service path to gain SYSTEM access...'
+          ],
+          'collection': [
+            '[INFO] Accessing Domain Controller via SYSTEM account...',
+            '[SUCCESS] Dumping NTDS.dit database.',
+            '[INFO] Searching for files containing "CONFIDENTIAL" or "SECRET"...',
+            '[SUCCESS] Found 452 sensitive documents in /Internal/Project_X.',
+            '[INFO] Harvesting browser cookies and saved passwords...'
+          ],
+          'staging': [
+            '[INFO] Creating hidden staging directory in C:\\Windows\\Temp\\_sys_...',
+            '[INFO] Compressing collected data into encrypted 7z archives...',
+            '[SUCCESS] 4.5GB of data staged for exfiltration.',
+            '[INFO] Splitting archives into 50MB chunks to avoid detection...',
+            '[SUCCESS] Staging complete.'
+          ],
+          'leak': [
+            '[INFO] Initializing data transfer to external FTP server...',
+            '[INFO] Using fragmented HTTPS requests to bypass DLP...',
+            '[SUCCESS] 2.1GB of data successfully transferred.',
+            '[INFO] Deleting staging directory and clearing event logs...',
+            '[SUCCESS] Data leakage complete. Insider threat simulation successful.'
+          ],
+          'botnet': [
+            '[INFO] Sending activation signal to 15,000 global bots...',
+            '[SUCCESS] 12,450 bots responded and are ready for deployment.',
+            '[INFO] Synchronizing attack vectors: SYN Flood, UDP Flood, HTTP GET Flood...',
+            '[SUCCESS] Botnet synchronized and waiting for target IP.'
+          ],
+          'flood': [
+            '[INFO] Launching multi-vector flood against 203.0.113.45...',
+            '[INFO] Current traffic volume: 450 Gbps.',
+            '[SUCCESS] Target edge router CPU utilization at 98%.',
+            '[INFO] Bypassing Cloudflare protection via direct IP targeting...',
+            '[SUCCESS] Traffic flood reaching target origin server.'
+          ],
+          'exhaustion': [
+            '[INFO] Target server (Nginx) connection pool exhausted.',
+            '[INFO] Database (PostgreSQL) max_connections reached.',
+            '[SUCCESS] Server response time increased to 45,000ms.',
+            '[INFO] Kernel panic detected on target web server...',
+            '[SUCCESS] Resource exhaustion achieved.'
+          ],
+          'outage': [
+            '[INFO] Monitoring target service availability...',
+            '[SUCCESS] Service status: 503 Service Unavailable.',
+            '[INFO] Global monitoring nodes reporting 100% packet loss to target.',
+            '[SUCCESS] DDoS objective achieved: Total service outage.',
+            '[INFO] Maintaining flood to prevent recovery...'
+          ]
+        };
+        
+        const newLogs = fallbackLogs[steps[i].id] || ['[INFO] Processing simulation step...'];
+        setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'completed', logs: newLogs } : s));
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
     
