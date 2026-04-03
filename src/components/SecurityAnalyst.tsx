@@ -1,6 +1,5 @@
 /* COPYRIGHT ALEN PEPA */
 import React, { useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { Bot, Sparkles, Send, Shield, AlertCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -45,29 +44,24 @@ export default function SecurityAnalyst() {
     setLoading(true);
     logToTerminal(`Initiating Alen's security analysis for: ${query.substring(0, 20)}...`, 'info');
     
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-      setTimeout(() => {
-        const offlineResult = getOfflineAnalysis(query);
-        setResponse(offlineResult);
-        logToTerminal('Alen analysis completed (Offline Mode).', 'success');
-        setLoading(false);
-      }, 1200);
-      return;
-    }
-
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `You are Alen, a world-class cybersecurity expert. Analyze the following security query or payload and provide a concise, technical explanation of risks and remediation. Query: ${query}`,
-        config: {
-          systemInstruction: "You are Alen, the CyberSuite OS AI Security Analyst. Be technical, concise, and professional. Use markdown for formatting. If the user asks who you are, identify as Alen.",
-        }
+      const response = await fetch('/api/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `Analyze the following security query or payload and provide a concise, technical explanation of risks and remediation. Query: ${query}` }] }],
+          config: {
+            systemInstruction: "You are Alen, the CyberSuite OS AI Security Analyst. Be technical, concise, and professional. Use markdown for formatting. If the user asks who you are, identify as Alen.",
+          }
+        })
       });
-      
-      setResponse(result.text || 'No analysis available.');
+
+      if (!response.ok) {
+        throw new Error('AI analysis failed');
+      }
+
+      const data = await response.json();
+      setResponse(data.text || 'No analysis available.');
       logToTerminal('Alen analysis completed successfully.', 'success');
     } catch (error) {
       console.error(error);
