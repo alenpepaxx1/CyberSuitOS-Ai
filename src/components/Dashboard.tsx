@@ -348,6 +348,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                   tickLine={false} 
                   axisLine={false} 
                   tick={{ fill: '#555' }}
+                  interval={3}
                 />
                 <YAxis 
                   stroke="#333" 
