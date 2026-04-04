@@ -234,38 +234,40 @@ async function startServer() {
 
   // SIEM Real-time Logs API
   app.get("/api/logs", (req, res) => {
-    // Simulate real system logs based on actual system state
-    const logs = [
-      {
-        id: Math.random().toString(36).substr(2, 9),
-        time: new Date().toLocaleTimeString(),
-        event: "System Resource Check",
-        source: os.hostname(),
-        status: "Normal",
-        severity: "low",
-        details: `CPU Load: ${os.loadavg()[0].toFixed(2)} | Free Memory: ${(os.freemem() / 1024 / 1024 / 1024).toFixed(2)}GB`
-      },
-      {
-        id: Math.random().toString(36).substr(2, 9),
-        time: new Date().toLocaleTimeString(),
-        event: "Network Interface Status",
-        source: "eth0",
-        status: "Active",
-        severity: "low",
-        details: `Interface up. IP: ${Object.values(os.networkInterfaces()).flat().find(i => i?.family === 'IPv4' && !i.internal)?.address || '127.0.0.1'}`
-      }
-    ];
+    const tactics = ['Initial Access', 'Execution', 'Persistence', 'Privilege Escalation', 'Defense Evasion', 'Credential Access', 'Discovery', 'Lateral Movement', 'Command and Control', 'Exfiltration', 'Impact'];
+    const techniques = ['T1190 Exploit Public-Facing Application', 'T1059 Command and Scripting Interpreter', 'T1078 Valid Accounts', 'T1110 Brute Force', 'T1003 OS Credential Dumping', 'T1046 Network Service Discovery'];
+    const protocols = ['TCP', 'UDP', 'ICMP', 'HTTP', 'HTTPS', 'DNS', 'SSH', 'RDP'];
+    const countries = ['RU', 'CN', 'KP', 'IR', 'US', 'BR', 'IN', 'RO', 'VN'];
+    const actions = ['Blocked', 'Mitigated', 'Logged', 'Dropped', 'Alerted'];
+    const severities = ['low', 'medium', 'high', 'critical'];
 
-    // Add some random "security" events to keep it interesting
-    if (Math.random() > 0.7) {
+    const generateRandomIp = () => `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+
+    const logs = [];
+    
+    // Generate 3-7 random logs
+    const numLogs = Math.floor(Math.random() * 5) + 3;
+    for (let i = 0; i < numLogs; i++) {
+      const severity = severities[Math.floor(Math.random() * severities.length)];
+      const isAttack = Math.random() > 0.4;
+      
       logs.push({
         id: Math.random().toString(36).substr(2, 9),
         time: new Date().toLocaleTimeString(),
-        event: "Kernel Process Monitor",
-        source: "kernel",
-        status: "Alert",
-        severity: "medium",
-        details: "Detected unusual syscall pattern in background process."
+        event: isAttack ? `Malicious Payload Detected (${techniques[Math.floor(Math.random() * techniques.length)]})` : "Routine System Check",
+        source: isAttack ? generateRandomIp() : os.hostname(),
+        destination: isAttack ? `10.0.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}` : '127.0.0.1',
+        port: isAttack ? [22, 80, 443, 3389, 8080, 53][Math.floor(Math.random() * 6)] : 0,
+        protocol: protocols[Math.floor(Math.random() * protocols.length)],
+        status: isAttack ? actions[Math.floor(Math.random() * actions.length)] : "Normal",
+        severity: isAttack ? severity : "low",
+        confidence: isAttack ? Math.floor(Math.random() * 40) + 60 : 100, // 60-100%
+        mitreTactic: isAttack ? tactics[Math.floor(Math.random() * tactics.length)] : 'N/A',
+        geo: isAttack ? countries[Math.floor(Math.random() * countries.length)] : 'LOCAL',
+        payloadSnippet: isAttack ? Buffer.from(Math.random().toString(36).substring(2, 15)).toString('base64') : 'N/A',
+        details: isAttack 
+          ? `Detected anomalous traffic pattern matching known threat signatures. Tactic: ${tactics[Math.floor(Math.random() * tactics.length)]}. Automated response engaged.`
+          : `CPU Load: ${os.loadavg()[0].toFixed(2)} | Free Memory: ${(os.freemem() / 1024 / 1024 / 1024).toFixed(2)}GB`
       });
     }
 
