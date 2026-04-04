@@ -18,6 +18,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(express.json());
+
   const fallbackThreatIntel = {
     news: [
       {
@@ -99,6 +101,44 @@ async function startServer() {
     if (key.length < 20) return false;
     return true;
   };
+
+  app.post("/api/ai-generate", async (req, res) => {
+    const { contents, config } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!isValidApiKey(apiKey)) {
+      return res.status(503).json({ error: "AI Core offline" });
+    }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: apiKey! });
+      const modelName = config?.model || "gemini-3-flash-preview";
+      
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: contents,
+        config: {
+          systemInstruction: config?.systemInstruction,
+          responseMimeType: config?.responseMimeType,
+          tools: config?.tools,
+          toolConfig: config?.toolConfig
+        }
+      });
+
+      res.json({ text: response.text });
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      
+      // Check if it's an API key error
+      if (errorMessage.includes("API key not valid") || errorMessage.includes("400")) {
+        console.warn("AI Core: Generation failed (Invalid API Key).");
+        return res.status(503).json({ error: "AI Core offline (Invalid Key)" });
+      }
+      
+      console.error("AI Generation Error:", error);
+      res.status(500).json({ error: errorMessage });
+    }
+  });
 
   app.get("/api/threat-intel", async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -1136,45 +1176,8 @@ async function startServer() {
     }
   });
 
-  // AI Generation Endpoint
-  app.post("/api/ai-generate", express.json(), async (req, res) => {
-    const { contents, config } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!isValidApiKey(apiKey)) {
-      return res.status(503).json({ error: "AI Core offline" });
-    }
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: apiKey! });
-      const modelName = config?.model || "gemini-3-flash-preview";
-      
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: contents,
-        config: {
-          systemInstruction: config?.systemInstruction,
-          responseMimeType: config?.responseMimeType,
-          tools: config?.tools,
-          toolConfig: config?.toolConfig
-        }
-      });
-
-      res.json({ text: response.text });
-    } catch (error: any) {
-      const errorMessage = error?.message || String(error);
-      
-      // Check if it's an API key error
-      if (errorMessage.includes("API key not valid") || errorMessage.includes("400")) {
-        console.warn("AI Core: Generation failed (Invalid API Key).");
-        return res.status(503).json({ error: "AI Core offline (Invalid Key)" });
-      }
-      
-      console.error("AI Generation Error:", error);
-      res.status(500).json({ error: errorMessage });
-    }
-  });
-
+  // AI Generation Endpoint removed from here (moved up)
+  
   // Global scan history storage
   let globalScanHistory: any[] = [
     { target: 'enterprise-node-01.io', score: 88, type: 'Full Scan', time: '2 mins ago', user: 'cyber_ghost' },
@@ -1187,7 +1190,7 @@ async function startServer() {
     res.json(globalScanHistory);
   });
 
-  app.post('/api/global-history', express.json(), (req, res) => {
+  app.post('/api/global-history', (req, res) => {
     const { target, score, type, user } = req.body;
     const newItem = {
       target,
