@@ -535,6 +535,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               { id: 'passwords', name: 'PassLab', icon: Lock, color: 'text-cyber-green' },
               { id: 'crypto', name: 'Crypto', icon: Hash, color: 'text-purple-400' },
               { id: 'network', name: 'OSINT', icon: Globe, color: 'text-orange-400' },
+              { id: 'dorks', name: 'Dorks', icon: Search, color: 'text-orange-400' },
               { id: 'payloads', name: 'Payloads', icon: TerminalIcon, color: 'text-red-400' },
               { id: 'scanner', name: 'Scanner', icon: Search, color: 'text-yellow-400' },
             ].map((tool, i) => (
