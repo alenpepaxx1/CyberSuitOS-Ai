@@ -159,6 +159,79 @@ async function startServer() {
     }
   });
 
+  // Live Stats & Real-Time Feed Cache
+  let cachedLiveFeed: any[] = [];
+  let lastFeedFetch = 0;
+
+  const fetchRssFeed = (url: string, sourceName: string): Promise<any[]> => {
+    return new Promise((resolve) => {
+      https.get(url, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          const items: any[] = [];
+          const regex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<\/item>/g;
+          let match;
+          while ((match = regex.exec(data)) !== null) {
+            items.push({
+              title: match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim(),
+              link: match[2].trim(),
+              source: sourceName,
+              severity: Math.random() > 0.7 ? 'critical' : Math.random() > 0.4 ? 'high' : 'medium',
+              timestamp: new Date().toISOString()
+            });
+          }
+          resolve(items);
+        });
+      }).on('error', () => resolve([]));
+    });
+  };
+
+  app.get("/api/live-stats", async (req, res) => {
+    const now = Date.now();
+    
+    // Refresh feed cache every 15 minutes
+    if (now - lastFeedFetch > 15 * 60 * 1000 || cachedLiveFeed.length === 0) {
+      try {
+        const [cisa, thn] = await Promise.all([
+          fetchRssFeed('https://www.cisa.gov/cybersecurity-advisories/all.xml', 'CISA'),
+          fetchRssFeed('https://feeds.feedburner.com/TheHackersNews', 'The Hacker News')
+        ]);
+        cachedLiveFeed = [...cisa, ...thn].sort(() => Math.random() - 0.5); // Shuffle
+        lastFeedFetch = now;
+      } catch (e) {
+        console.error('Failed to fetch live RSS feeds:', e);
+      }
+    }
+
+    // Generate realistic incrementing numbers based on current time
+    // Base numbers for today
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const secondsSinceStartOfDay = Math.floor((now - startOfDay.getTime()) / 1000);
+    
+    // Simulate ~15 active threats per minute globally
+    const activeThreats = 1242 + Math.floor(secondsSinceStartOfDay * (15 / 60));
+    
+    // Simulate ~500 blocked attacks per minute
+    const blockedAttacks = 45200 + Math.floor(secondsSinceStartOfDay * (500 / 60));
+
+    // Rotate the feed to show different items every 5 seconds
+    const rotationIndex = Math.floor(now / 5000) % Math.max(1, cachedLiveFeed.length);
+    const currentFeed = [];
+    for (let i = 0; i < 6; i++) {
+      if (cachedLiveFeed.length > 0) {
+        currentFeed.push(cachedLiveFeed[(rotationIndex + i) % cachedLiveFeed.length]);
+      }
+    }
+
+    res.json({
+      activeThreats,
+      blockedAttacks,
+      liveFeed: currentFeed.length > 0 ? currentFeed : fallbackThreatIntel.news
+    });
+  });
+
   // SIEM Real-time Logs API
   app.get("/api/logs", (req, res) => {
     // Simulate real system logs based on actual system state
