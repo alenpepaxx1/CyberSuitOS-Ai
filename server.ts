@@ -1175,6 +1175,31 @@ async function startServer() {
     }
   });
 
+  // Global scan history storage
+  let globalScanHistory: any[] = [
+    { target: 'enterprise-node-01.io', score: 88, type: 'Full Scan', time: '2 mins ago', user: 'cyber_ghost' },
+    { target: 'api.fintech-secure.net', score: 42, type: 'Web Scan', time: '15 mins ago', user: 'root_admin' },
+    { target: '104.21.44.12', score: 15, type: 'Infra Scan', time: '45 mins ago', user: 'sec_ops' },
+    { target: 'dev-portal.internal.cloud', score: 94, type: 'Deep Scan', time: '1 hour ago', user: 'shadow_walker' },
+  ];
+
+  app.get('/api/global-history', (req, res) => {
+    res.json(globalScanHistory);
+  });
+
+  app.post('/api/global-history', express.json(), (req, res) => {
+    const { target, score, type, user } = req.body;
+    const newItem = {
+      target,
+      score,
+      type,
+      user: user || 'anonymous',
+      time: 'Just now'
+    };
+    globalScanHistory = [newItem, ...globalScanHistory].slice(0, 20);
+    res.json({ status: 'ok' });
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1189,32 +1214,7 @@ async function startServer() {
     });
   }
 
-  // Global scan history storage
-let globalScanHistory: any[] = [
-  { target: 'enterprise-node-01.io', score: 88, type: 'Full Scan', time: '2 mins ago', user: 'cyber_ghost' },
-  { target: 'api.fintech-secure.net', score: 42, type: 'Web Scan', time: '15 mins ago', user: 'root_admin' },
-  { target: '104.21.44.12', score: 15, type: 'Infra Scan', time: '45 mins ago', user: 'sec_ops' },
-  { target: 'dev-portal.internal.cloud', score: 94, type: 'Deep Scan', time: '1 hour ago', user: 'shadow_walker' },
-];
-
-app.get('/api/global-history', (req, res) => {
-  res.json(globalScanHistory);
-});
-
-app.post('/api/global-history', express.json(), (req, res) => {
-  const { target, score, type, user } = req.body;
-  const newItem = {
-    target,
-    score,
-    type,
-    user: user || 'anonymous',
-    time: 'Just now'
-  };
-  globalScanHistory = [newItem, ...globalScanHistory].slice(0, 20);
-  res.json({ status: 'ok' });
-});
-
-app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
