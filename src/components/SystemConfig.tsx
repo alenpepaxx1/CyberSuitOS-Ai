@@ -60,6 +60,9 @@ export default function SystemConfig() {
   const [kernelIntegrity, setKernelIntegrity] = useState(true);
   const [hsmStatus, setHsmStatus] = useState('active');
   const [aiAutonomy, setAiAutonomy] = useState(80);
+  const [threatSync, setThreatSync] = useState(true);
+  const [memoryProtection, setMemoryProtection] = useState(true);
+  const [dohEnabled, setDohEnabled] = useState(true);
 
   const handleReset = () => {
     if (confirm("Are you sure you want to reset all system configurations to default?")) {
@@ -338,6 +341,81 @@ export default function SystemConfig() {
                   <span>Fully Autonomous (Lethal)</span>
                 </div>
               </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                <div className="flex items-center gap-3">
+                  <Globe size={18} className={cn(threatSync ? "text-blue-500" : "text-gray-500")} />
+                  <div>
+                    <div className="text-sm font-bold text-white">Global Threat Sync</div>
+                    <div className="text-[10px] text-gray-500 font-mono">Real-time intelligence sharing</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setThreatSync(!threatSync);
+                    logToTerminal(`Global Threat Sync ${!threatSync ? 'ENABLED' : 'DISABLED'}`, threatSync ? 'warn' : 'success');
+                  }}
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative",
+                    threatSync ? "bg-blue-500" : "bg-white/10"
+                  )}
+                >
+                  <motion.div 
+                    animate={{ x: threatSync ? 26 : 2 }}
+                    className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck size={18} className={cn(memoryProtection ? "text-emerald-500" : "text-gray-500")} />
+                  <div>
+                    <div className="text-sm font-bold text-white">Hardware Memory Protection</div>
+                    <div className="text-[10px] text-gray-500 font-mono">ASLR & DEP hardware enforcement</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setMemoryProtection(!memoryProtection);
+                    logToTerminal(`Hardware Memory Protection ${!memoryProtection ? 'ENABLED' : 'DISABLED'}`, memoryProtection ? 'warn' : 'success');
+                  }}
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative",
+                    memoryProtection ? "bg-emerald-500" : "bg-white/10"
+                  )}
+                >
+                  <motion.div 
+                    animate={{ x: memoryProtection ? 26 : 2 }}
+                    className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                <div className="flex items-center gap-3">
+                  <Wifi size={18} className={cn(dohEnabled ? "text-purple-500" : "text-gray-500")} />
+                  <div>
+                    <div className="text-sm font-bold text-white">DNS over HTTPS (DoH)</div>
+                    <div className="text-[10px] text-gray-500 font-mono">Encrypted DNS queries</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setDohEnabled(!dohEnabled);
+                    logToTerminal(`DNS over HTTPS ${!dohEnabled ? 'ENABLED' : 'DISABLED'}`, dohEnabled ? 'warn' : 'success');
+                  }}
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative",
+                    dohEnabled ? "bg-purple-500" : "bg-white/10"
+                  )}
+                >
+                  <motion.div 
+                    animate={{ x: dohEnabled ? 26 : 2 }}
+                    className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -452,6 +530,45 @@ export default function SystemConfig() {
 
             <div className="flex items-center justify-between pt-4 border-t border-white/5">
               <div className="flex items-center gap-3">
+                <ShieldCheck size={18} className={cn(kernelIntegrity ? "text-emerald-500" : "text-gray-500")} />
+                <div>
+                  <div className="text-sm font-bold text-white">Kernel Integrity Check</div>
+                  <div className="text-[10px] text-gray-500 font-mono">Real-time memory hash verification</div>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setKernelIntegrity(!kernelIntegrity);
+                  logToTerminal(`Kernel Integrity Check ${!kernelIntegrity ? 'ENABLED' : 'DISABLED'}`, kernelIntegrity ? 'warn' : 'success');
+                }}
+                className={cn(
+                  "w-12 h-6 rounded-full transition-all relative",
+                  kernelIntegrity ? "bg-emerald-500" : "bg-white/10"
+                )}
+              >
+                <motion.div 
+                  animate={{ x: kernelIntegrity ? 26 : 2 }}
+                  className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                />
+              </button>
+            </div>
+
+            <div className="space-y-2 pt-4 border-t border-white/5">
+              <label className="text-xs font-mono text-gray-500 uppercase">HSM Module Status</label>
+              <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
+                <Lock size={16} className="text-blue-400" />
+                <div className="flex-1">
+                  <div className="text-xs font-bold text-white uppercase">Hardware Security Module</div>
+                  <div className="text-[10px] text-gray-500 font-mono">FIPS 140-2 Level 4 Certified</div>
+                </div>
+                <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-mono text-emerald-500 font-bold uppercase animate-pulse">
+                  {hsmStatus}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-white/5">
+              <div className="flex items-center gap-3">
                 <TerminalSquare size={18} className={cn(kernelDebug ? "text-red-500" : "text-gray-500")} />
                 <div>
                   <div className="text-sm font-bold text-white">Kernel Debug Mode</div>
@@ -470,6 +587,30 @@ export default function SystemConfig() {
               >
                 <motion.div 
                   animate={{ x: kernelDebug ? 26 : 2 }}
+                  className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                />
+              </button>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-white/5">
+              <div className="flex items-center gap-3">
+                <Activity size={18} className={cn(verboseLogging ? "text-blue-500" : "text-gray-500")} />
+                <div>
+                  <div className="text-sm font-bold text-white">Verbose Logging</div>
+                  <div className="text-[10px] text-gray-500 font-mono">Detailed debug trace</div>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setVerboseLogging(!verboseLogging);
+                  logToTerminal(`Verbose Logging ${!verboseLogging ? 'ENABLED' : 'DISABLED'}`, 'info');
+                }}
+                className={cn(
+                  "w-12 h-6 rounded-full transition-all relative",
+                  verboseLogging ? "bg-blue-500" : "bg-white/10"
+                )}
+              >
+                <motion.div 
+                  animate={{ x: verboseLogging ? 26 : 2 }}
                   className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
                 />
               </button>
