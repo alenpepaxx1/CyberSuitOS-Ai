@@ -32,8 +32,15 @@ interface LogEntry {
   time: string;
   event: string;
   source: string;
+  destination?: string;
+  port?: number;
+  protocol?: string;
   status: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
+  confidence?: number;
+  mitreTactic?: string;
+  geo?: string;
+  payloadSnippet?: string;
   details?: string;
 }
 
@@ -611,12 +618,15 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           </div>
           <div className="overflow-x-auto flex-1 max-h-[350px] custom-scrollbar">
-            <table className="w-full text-left text-[10px] font-mono">
+            <table className="w-full text-left text-[10px] font-mono whitespace-nowrap">
               <thead className="sticky top-0 bg-[#0d0d0d] z-10 border-b border-white/5">
                 <tr className="text-gray-500 uppercase">
-                  <th className="p-4 font-normal">Timestamp</th>
-                  <th className="p-4 font-normal">Event Signature</th>
-                  <th className="p-4 font-normal">Source Vector</th>
+                  <th className="p-4 font-normal">Time</th>
+                  <th className="p-4 font-normal">Signature</th>
+                  <th className="p-4 font-normal">Source</th>
+                  <th className="p-4 font-normal">Target</th>
+                  <th className="p-4 font-normal">Proto</th>
+                  <th className="p-4 font-normal">Geo</th>
                   <th className="p-4 font-normal">Action</th>
                   <th className="p-4 font-normal">Risk</th>
                 </tr>
@@ -635,8 +645,15 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                       className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer group"
                     >
                       <td className="p-4 text-gray-600">{log.time}</td>
-                      <td className="p-4 font-bold text-white group-hover:text-cyber-green transition-colors">{log.event}</td>
+                      <td className="p-4 font-bold text-white group-hover:text-cyber-green transition-colors truncate max-w-[200px]">{log.event}</td>
                       <td className="p-4 text-blue-400/80">{log.source}</td>
+                      <td className="p-4 text-purple-400/80">{log.destination ? `${log.destination}:${log.port}` : 'N/A'}</td>
+                      <td className="p-4 text-gray-400">{log.protocol || 'N/A'}</td>
+                      <td className="p-4">
+                        <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[8px] text-gray-400">
+                          {log.geo || 'N/A'}
+                        </span>
+                      </td>
                       <td className="p-4">
                         <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[8px] text-gray-400">
                           {log.status}
@@ -767,24 +784,32 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                   <div className="text-xl font-bold text-white tracking-tight">{selectedLog.event}</div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-6 p-4 bg-white/5 border border-white/10 rounded-xl">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-white/5 border border-white/10 rounded-xl">
                   <div className="space-y-1">
                     <div className="text-[10px] font-mono text-gray-500 uppercase">Source Vector</div>
-                    <div className="text-sm font-mono text-blue-400 font-bold">{selectedLog.source}</div>
+                    <div className="text-xs font-mono text-blue-400 font-bold">{selectedLog.source} {selectedLog.geo && <span className="text-gray-500">[{selectedLog.geo}]</span>}</div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase">Timestamp</div>
-                    <div className="text-sm font-mono text-gray-300">{selectedLog.time}</div>
+                    <div className="text-[10px] font-mono text-gray-500 uppercase">Target Vector</div>
+                    <div className="text-xs font-mono text-purple-400 font-bold">{selectedLog.destination ? `${selectedLog.destination}:${selectedLog.port}` : 'N/A'}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono text-gray-500 uppercase">Protocol</div>
+                    <div className="text-xs font-mono text-gray-300">{selectedLog.protocol || 'N/A'}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono text-gray-500 uppercase">MITRE Tactic</div>
+                    <div className="text-xs font-mono text-gray-300">{selectedLog.mitreTactic || 'N/A'}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-[10px] font-mono text-gray-500 uppercase">Status</div>
-                    <div className="text-sm font-mono text-emerald-500 uppercase font-bold">{selectedLog.status}</div>
+                    <div className="text-xs font-mono text-emerald-500 uppercase font-bold">{selectedLog.status}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-[10px] font-mono text-gray-500 uppercase">Risk Level</div>
-                    <div className={cn("text-sm font-mono uppercase font-bold", 
-                      selectedLog.severity === 'critical' ? "text-red-500" : "text-amber-500"
-                    )}>{selectedLog.severity}</div>
+                    <div className={cn("text-xs font-mono uppercase font-bold", 
+                      selectedLog.severity === 'critical' ? "text-red-500" : selectedLog.severity === 'high' ? 'text-amber-500' : selectedLog.severity === 'medium' ? 'text-blue-500' : 'text-emerald-500'
+                    )}>{selectedLog.severity} {selectedLog.confidence && <span className="text-gray-500">({selectedLog.confidence}% conf)</span>}</div>
                   </div>
                 </div>
 
@@ -794,6 +819,15 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     {selectedLog.details || "Automated heuristic analysis suggests a coordinated probe targeting legacy SSH protocols. Source IP has been flagged in global threat databases. Mitigation protocols successfully engaged."}
                   </div>
                 </div>
+
+                {selectedLog.payloadSnippet && selectedLog.payloadSnippet !== 'N/A' && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Payload Snippet (Base64)</div>
+                    <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl text-[10px] text-red-400/80 font-mono break-all">
+                      {selectedLog.payloadSnippet}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-2">
                   <button 
