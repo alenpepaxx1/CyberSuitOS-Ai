@@ -1,4 +1,6 @@
 
+import { fetchAiGenerate } from '../lib/ai-fetch';
+
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
@@ -105,22 +107,12 @@ export class CyberAiService {
 
   async sendMessage(messages: ChatMessage[]): Promise<string> {
     try {
-      const response = await fetch('/api/ai-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: messages.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
-          config: {
-            systemInstruction: SYSTEM_INSTRUCTION,
-          }
-        })
+      const data = await fetchAiGenerate({
+        contents: messages.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION,
+        }
       });
-
-      if (!response.ok) {
-        throw new Error('AI Generation failed');
-      }
-
-      const data = await response.json();
       return data.text || "Neural core failed to generate a response. Please retry.";
     } catch (error) {
       console.error("CyberAiService Error:", error);
