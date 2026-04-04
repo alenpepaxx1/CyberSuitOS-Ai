@@ -1,6 +1,6 @@
 /* COPYRIGHT ALEN PEPA */
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Sparkles, Send, Shield, AlertCircle, Loader2, FileText, Download, Trash2, MessageSquare, Code, FileSearch, Zap, Paperclip } from 'lucide-react';
+import { Bot, Sparkles, Send, Shield, AlertCircle, Loader2, FileText, Download, Trash2, MessageSquare, Code, FileSearch, Zap, Paperclip, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { logToTerminal } from './Terminal';
