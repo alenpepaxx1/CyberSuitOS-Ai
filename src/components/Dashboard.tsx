@@ -39,6 +39,7 @@ interface LogEntry {
   severity: 'low' | 'medium' | 'high' | 'critical';
   confidence?: number;
   mitreTactic?: string;
+  mitreTechnique?: string;
   geo?: string;
   payloadSnippet?: string;
   details?: string;
@@ -802,6 +803,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     <div className="text-xs font-mono text-gray-300">{selectedLog.mitreTactic || 'N/A'}</div>
                   </div>
                   <div className="space-y-1">
+                    <div className="text-[10px] font-mono text-gray-500 uppercase">MITRE Technique</div>
+                    <div className="text-xs font-mono text-gray-300">{selectedLog.mitreTechnique || 'N/A'}</div>
+                  </div>
+                  <div className="space-y-1">
                     <div className="text-[10px] font-mono text-gray-500 uppercase">Status</div>
                     <div className="text-xs font-mono text-emerald-500 uppercase font-bold">{selectedLog.status}</div>
                   </div>
@@ -822,7 +827,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
                 {selectedLog.payloadSnippet && selectedLog.payloadSnippet !== 'N/A' && (
                   <div className="space-y-2">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Payload Snippet (Base64)</div>
+                    <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Payload Snippet</div>
                     <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl text-[10px] text-red-400/80 font-mono break-all">
                       {selectedLog.payloadSnippet}
                     </div>
