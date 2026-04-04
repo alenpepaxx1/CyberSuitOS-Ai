@@ -47,6 +47,7 @@ import PythonLab from './components/PythonLab';
 import SystemConfig from './components/SystemConfig';
 import SecurityAnalyst from './components/SecurityAnalyst';
 import AIAnalyst from './components/AIAnalyst';
+import DorkExplorer from './components/DorkExplorer';
 import Launcher from './components/Launcher';
 import Terminal, { logToTerminal } from './components/Terminal';
 import CustomCursor from './components/CustomCursor';
@@ -157,6 +158,7 @@ function MainContent() {
     { id: 'crypto', name: 'Crypto Engine', icon: Hash, color: 'text-indigo-500' },
     { id: 'stego', name: 'Stego Analysis', icon: Eye, color: 'text-pink-500' },
     { id: 'python-lab', name: 'Python Lab', icon: Code, color: 'text-yellow-500' },
+    { id: 'dorks', name: 'Dork Explorer', icon: Search, color: 'text-orange-500' },
     { id: 'network', name: 'Network OSINT', icon: Globe, color: 'text-orange-500' },
     { id: 'analyst', name: 'Security Analyst', icon: Bot, color: 'text-emerald-500' },
     { id: 'anonymous-chat', name: 'Secure Chat', icon: MessageSquare, color: 'text-cyan-500' },
@@ -175,6 +177,7 @@ function MainContent() {
       case 'crypto': return <CryptoTool />;
       case 'stego': return <StegoTool />;
       case 'python-lab': return <PythonLab />;
+      case 'dorks': return <DorkExplorer />;
       case 'network': return <NetworkTool />;
       case 'analyst': return <SecurityAnalyst />;
       case 'anonymous-chat': return <AnonymousChat />;
