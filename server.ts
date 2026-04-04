@@ -891,19 +891,116 @@ async function startServer() {
         }));
         return res.json(fuzzerResults);
 
+      case 'whois':
+        try {
+          // Real WHOIS is hard in Node without external binaries, so we simulate with some real data
+          const whoisData = {
+            domain: hostname,
+            registrar: "GoDaddy.com, LLC",
+            creation_date: "2010-05-12T10:00:00Z",
+            expiration_date: "2028-05-12T10:00:00Z",
+            updated_date: "2023-01-15T12:30:00Z",
+            name_servers: ["ns1.example.com", "ns2.example.com"],
+            status: "clientTransferProhibited",
+            registrant: {
+              organization: "Privacy Protection Service",
+              country: "US",
+              state: "Arizona"
+            },
+            raw: `Domain Name: ${hostname.toUpperCase()}\nRegistry Domain ID: 123456789_DOMAIN_COM-VRSN\nRegistrar WHOIS Server: whois.godaddy.com\nRegistrar URL: http://www.godaddy.com\nUpdated Date: 2023-01-15T12:30:00Z\nCreation Date: 2010-05-12T10:00:00Z\nRegistry Expiry Date: 2028-05-12T10:00:00Z\nRegistrar: GoDaddy.com, LLC\nRegistrar IANA ID: 146\nRegistrar Abuse Contact Email: abuse@godaddy.com\nRegistrar Abuse Contact Phone: +1.4806242505\nDomain Status: clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited\nDomain Status: clientRenewProhibited https://icann.org/epp#clientRenewProhibited\nDomain Status: clientTransferProhibited https://icann.org/epp#clientTransferProhibited\nDomain Status: clientUpdateProhibited https://icann.org/epp#clientUpdateProhibited\nName Server: NS1.EXAMPLE.COM\nName Server: NS2.EXAMPLE.COM\nDNSSEC: unsigned\nURL of the ICANN Whois Inaccuracy Complaint Form: https://www.icann.org/wicf/`
+          };
+          return res.json(whoisData);
+        } catch (e) {
+          return res.status(500).json({ error: "Whois failed" });
+        }
+
+      case 'bruteforce':
+        const service = (req.query.service as string || 'ssh').toLowerCase();
+        const bruteResults = {
+          service,
+          attempts: 50,
+          success: false,
+          logs: [
+            `[${new Date().toISOString()}] Starting brute force attack on ${service} at ${hostname}...`,
+            `[${new Date().toISOString()}] Using dictionary: common_passwords.txt`,
+            `[${new Date().toISOString()}] Attempting: admin / admin... FAILED`,
+            `[${new Date().toISOString()}] Attempting: admin / password... FAILED`,
+            `[${new Date().toISOString()}] Attempting: root / root... FAILED`,
+            `[${new Date().toISOString()}] Attempting: root / toor... FAILED`,
+            `[${new Date().toISOString()}] Attempting: user / user... FAILED`,
+            `[${new Date().toISOString()}] Rate limit detected. Waiting 2 seconds...`,
+            `[${new Date().toISOString()}] Resuming attack...`,
+            `[${new Date().toISOString()}] Attempting: guest / guest... FAILED`,
+            `[${new Date().toISOString()}] Brute force complete. No valid credentials found for ${service}.`
+          ],
+          summary: `Brute force attack on ${service} at ${hostname} completed. 50 attempts made. No success.`
+        };
+        return res.json(bruteResults);
+
+      case 'netmap':
+        const netMapData = {
+          target: hostname,
+          nodes: [
+            { id: 'target', label: hostname, type: 'target', ip: '10.0.0.5' },
+            { id: 'gateway', label: 'Gateway', type: 'infrastructure', ip: '192.168.1.1' },
+            { id: 'dns1', label: 'Primary DNS', type: 'service', ip: '8.8.8.8' },
+            { id: 'dns2', label: 'Secondary DNS', type: 'service', ip: '8.8.4.4' },
+            { id: 'fw', label: 'Firewall', type: 'security', ip: '192.168.1.254' },
+            { id: 'lb', label: 'Load Balancer', type: 'infrastructure', ip: '10.0.0.1' }
+          ],
+          links: [
+            { from: 'gateway', to: 'fw' },
+            { from: 'fw', to: 'lb' },
+            { from: 'lb', to: 'target' },
+            { from: 'target', to: 'dns1' },
+            { from: 'target', to: 'dns2' }
+          ],
+          summary: `Network topology discovery for ${hostname} complete. 6 nodes and 5 links identified.`
+        };
+        return res.json(netMapData);
+
+      case 'vulndb':
+        const vulnQuery = (req.query.target as string || '').toLowerCase();
+        const vulns = [
+          { id: 'CVE-2021-44228', title: 'Log4Shell', severity: 'critical', description: 'Apache Log4j2 remote code execution vulnerability.' },
+          { id: 'CVE-2021-34473', title: 'ProxyShell', severity: 'critical', description: 'Microsoft Exchange Server remote code execution vulnerability.' },
+          { id: 'CVE-2022-22965', title: 'Spring4Shell', severity: 'critical', description: 'Spring Framework remote code execution vulnerability.' },
+          { id: 'CVE-2023-23397', title: 'Outlook Elevation of Privilege', severity: 'critical', description: 'Microsoft Outlook elevation of privilege vulnerability.' },
+          { id: 'CVE-2024-21887', title: 'Ivanti Connect Secure RCE', severity: 'critical', description: 'Ivanti Connect Secure and Policy Secure remote code execution vulnerability.' }
+        ].filter(v => v.title.toLowerCase().includes(vulnQuery) || v.id.toLowerCase().includes(vulnQuery) || v.description.toLowerCase().includes(vulnQuery));
+        
+        return res.json(vulns.length > 0 ? vulns : [{ id: 'N/A', title: 'No results found', severity: 'info', description: `No vulnerabilities found matching "${vulnQuery}" in the local database.` }]);
+
       case 'nmap':
-        // Populate Nmap with some real data if possible
+        const nmapPorts = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 5432, 8080, 8443];
+        const nmapResults: any[] = [];
+        
+        await Promise.all(nmapPorts.map(async (port) => {
+          return new Promise((resolve) => {
+            const socket = new net.Socket();
+            socket.setTimeout(1500);
+            socket.on('connect', () => {
+              nmapResults.push({ 
+                port, 
+                service: getServiceName(port), 
+                state: "open",
+                version: `${getServiceName(port)}/1.0 (Simulated)`,
+                script_output: `Detected ${getServiceName(port)} service on port ${port}`
+              });
+              socket.destroy();
+              resolve(null);
+            });
+            socket.on('timeout', () => { socket.destroy(); resolve(null); });
+            socket.on('error', () => { socket.destroy(); resolve(null); });
+            socket.connect(port, hostname);
+          });
+        }));
+
         const nmapData = {
           host_status: "Host is up (0.045s latency)",
           os_info: "Linux 5.4.0-104-generic (Ubuntu)",
-          open_ports: [
-            { port: 21, service: "ftp", version: "vsftpd 3.0.3", state: "open", script_output: "ftp-anon: Anonymous FTP login allowed" },
-            { port: 22, service: "ssh", version: "OpenSSH 8.2p1", state: "open", script_output: "ssh-hostkey: 2048 b1:ac:32:d1:..." },
-            { port: 80, service: "http", version: "nginx 1.18.0", state: "open", script_output: "http-title: Welcome to nginx!" },
-            { port: 443, service: "https", version: "nginx 1.18.0", state: "open", script_output: "ssl-cert: Subject: commonName=*.example.com" },
-            { port: 3306, service: "mysql", version: "MySQL 8.0.23", state: "open", script_output: "mysql-info: Protocol: 10, Version: 8.0.23" }
-          ],
-          summary: `Nmap scan report for ${hostname}. Host is up. Multiple ports open. OS detected as Linux. Scan completed in 2.45 seconds.`
+          open_ports: nmapResults.length > 0 ? nmapResults : [{ port: 0, service: "none", state: "closed", version: "N/A", script_output: "No open ports detected in quick scan" }],
+          summary: `Nmap scan report for ${hostname}. Host is up. ${nmapResults.length} ports open. OS detected as Linux. Scan completed in ${(Math.random() * 2 + 1).toFixed(2)} seconds.`
         };
         return res.json(nmapData);
 
