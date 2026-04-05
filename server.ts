@@ -930,13 +930,26 @@ async function startServer() {
   }
 
   // Tool-specific endpoints
+  const scanCache = new Map<string, { data: any, timestamp: number }>();
+  const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
+
   app.get("/api/tools/:tool", async (req, res) => {
     const { tool } = req.params;
     const target = req.query.target as string;
     if (!target) return res.status(400).json({ error: "Target required" });
 
+    const cacheKey = `${tool}:${target}`;
+    if (scanCache.has(cacheKey)) {
+      const cached = scanCache.get(cacheKey)!;
+      if (Date.now() - cached.timestamp < CACHE_TTL) {
+        console.log(`[Scanner] Returning cached result for ${cacheKey}`);
+        return res.json(cached.data);
+      }
+    }
+
     const hostname = target.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
 
+    let result: any;
     switch (tool) {
       case 'subdomains':
         if (net.isIP(hostname) || hostname === 'localhost' || hostname === '127.0.0.1') {
@@ -1253,7 +1266,7 @@ async function startServer() {
 
       case 'ssl':
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          return res.json({
+          result = {
             subject: { CN: 'localhost' },
             issuer: { CN: 'Self-Signed' },
             valid_from: new Date().toISOString(),
@@ -1261,7 +1274,8 @@ async function startServer() {
             fingerprint: 'LOCAL-CERT-FINGERPRINT',
             status: "Internal/Self-Signed",
             vulnerabilities: ["Local development environment detected"]
-          });
+          };
+          break;
         }
         try {
           const options = {
@@ -1271,53 +1285,44 @@ async function startServer() {
             rejectUnauthorized: false,
           };
           
-          const req = https.request(options, (httpsRes) => {
-            const cert = (httpsRes.socket as any).getPeerCertificate(true); // true to get full certificate chain
-            if (cert && Object.keys(cert).length > 0) {
-              const validTo = new Date(cert.valid_to);
-              const isValid = validTo > new Date();
-              const sslData = {
-                subject: cert.subject,
-                issuer: cert.issuer,
-                valid_from: cert.valid_from,
-                valid_to: cert.valid_to,
-                fingerprint: cert.fingerprint,
-                status: isValid ? "Valid" : "Expired/Invalid",
-                vulnerabilities: [] as string[]
-              };
-              if (!isValid) sslData.vulnerabilities.push("Certificate is expired");
-              
-              // Check for weak signature algorithm
-              if (cert.sigalg && (cert.sigalg.includes('md5') || cert.sigalg.includes('sha1'))) {
-                sslData.vulnerabilities.push(`Weak signature algorithm: ${cert.sigalg}`);
-                sslData.status = "Insecure";
+          result = await new Promise((resolve, reject) => {
+            const req = https.request(options, (httpsRes) => {
+              const cert = (httpsRes.socket as any).getPeerCertificate(true);
+              if (cert && Object.keys(cert).length > 0) {
+                const validTo = new Date(cert.valid_to);
+                const isValid = validTo > new Date();
+                const sslData = {
+                  subject: cert.subject,
+                  issuer: cert.issuer,
+                  valid_from: cert.valid_from,
+                  valid_to: cert.valid_to,
+                  fingerprint: cert.fingerprint,
+                  status: isValid ? "Valid" : "Expired/Invalid",
+                  vulnerabilities: [] as string[],
+                  cipher: (httpsRes.socket as any).getCipher ? (httpsRes.socket as any).getCipher().name : 'Unknown',
+                  protocol: (httpsRes.socket as any).getProtocol ? (httpsRes.socket as any).getProtocol() : 'Unknown'
+                };
+                if (!isValid) sslData.vulnerabilities.push("Certificate is expired");
+                
+                if (cert.sigalg && (cert.sigalg.includes('md5') || cert.sigalg.includes('sha1'))) {
+                  sslData.vulnerabilities.push(`Weak signature algorithm: ${cert.sigalg}`);
+                  sslData.status = "Insecure";
+                }
+                
+                httpsRes.destroy();
+                resolve(sslData);
+              } else {
+                httpsRes.destroy();
+                reject(new Error("No certificate found"));
               }
-
-              httpsRes.destroy();
-              return res.json(sslData);
-            } else {
-              httpsRes.destroy();
-              return res.status(404).json({ error: "No certificate found" });
-            }
+            });
+            
+            req.on('error', reject);
+            req.setTimeout(5000, () => { req.destroy(); reject(new Error("Timeout")); });
+            req.end();
           });
-          
-          req.on('error', (e) => {
-            console.error(`[Scanner] SSL request error for ${hostname}:`, e);
-            if (!res.headersSent) {
-              return res.status(500).json({ error: "Failed to connect or retrieve SSL data" });
-            }
-          });
-          
-          req.setTimeout(5000, () => {
-            req.destroy();
-            if (!res.headersSent) {
-              return res.status(504).json({ error: "Timeout retrieving SSL data" });
-            }
-          });
-          
-          req.end();
-        } catch (e) {
-          return res.status(500).json({ error: "SSL analysis failed" });
+        } catch (e: any) {
+          return res.status(500).json({ error: `SSL analysis failed: ${e.message}` });
         }
         break;
 
@@ -1352,12 +1357,18 @@ async function startServer() {
         return res.json(fuzzerResults);
 
       case 'whois':
-        const whoisData = await performWhoisLookup(hostname);
-        if (whoisData) {
-          return res.json(whoisData);
-        } else {
-          return res.status(404).json({ error: "WHOIS/RDAP data not available for this domain or TLD." });
+        try {
+          const whois = require('whois-json');
+          const whoisData = await whois(hostname);
+          if (whoisData && Object.keys(whoisData).length > 0) {
+            result = whoisData;
+          } else {
+            return res.status(404).json({ error: "WHOIS data not available." });
+          }
+        } catch (e) {
+          return res.status(500).json({ error: "WHOIS lookup failed." });
         }
+        break;
 
       case 'bruteforce':
         const service = (req.query.service as string || 'ssh').toLowerCase();
