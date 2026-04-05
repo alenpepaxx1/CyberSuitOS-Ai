@@ -1248,11 +1248,10 @@ async function startServer() {
             port: 443,
             method: 'GET',
             rejectUnauthorized: false,
-            agent: false
           };
           
           const req = https.request(options, (httpsRes) => {
-            const cert = (httpsRes.socket as any).getPeerCertificate();
+            const cert = (httpsRes.socket as any).getPeerCertificate(true); // true to get full certificate chain
             if (cert && Object.keys(cert).length > 0) {
               const validTo = new Date(cert.valid_to);
               const isValid = validTo > new Date();
@@ -1263,7 +1262,7 @@ async function startServer() {
                 valid_to: cert.valid_to,
                 fingerprint: cert.fingerprint,
                 status: isValid ? "Valid" : "Expired/Invalid",
-                vulnerabilities: []
+                vulnerabilities: [] as string[]
               };
               if (!isValid) sslData.vulnerabilities.push("Certificate is expired");
               
@@ -1282,12 +1281,17 @@ async function startServer() {
           });
           
           req.on('error', (e) => {
-            return res.status(500).json({ error: "Failed to connect or retrieve SSL data" });
+            console.error(`[Scanner] SSL request error for ${hostname}:`, e);
+            if (!res.headersSent) {
+              return res.status(500).json({ error: "Failed to connect or retrieve SSL data" });
+            }
           });
           
           req.setTimeout(5000, () => {
             req.destroy();
-            return res.status(504).json({ error: "Timeout retrieving SSL data" });
+            if (!res.headersSent) {
+              return res.status(504).json({ error: "Timeout retrieving SSL data" });
+            }
           });
           
           req.end();
