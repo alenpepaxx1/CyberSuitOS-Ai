@@ -1433,8 +1433,12 @@ async function startServer() {
             httpsAgent: agent,
             timeout: 10000,
             maxRedirects: 5,
-            validateStatus: () => true // Accept all status codes
+            validateStatus: (status) => status >= 200 && status < 500 // Accept 2xx, 3xx, 4xx
           });
+          
+          if (response.status >= 400) {
+            return res.json([{ name: 'Target Unreachable', category: 'Error', confidence: 0, error: `Status ${response.status}` }]);
+          }
           
           const tech: any[] = [];
           const headers = response.headers;
@@ -1488,6 +1492,7 @@ async function startServer() {
           
           return res.json(uniqueTech);
         } catch (e: any) {
+          console.error("[Scanner] Tech stack detection failed for", target, e);
           return res.json([{ name: 'Target Unreachable', category: 'Error', confidence: 0, error: e.message }]);
         }
 
