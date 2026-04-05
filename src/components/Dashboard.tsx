@@ -229,6 +229,13 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   return (
     <div className="space-y-6 p-6 bg-[#050505] min-h-full rounded-2xl border border-[#222] cyber-grid">
+      <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-4 rounded-xl flex items-center gap-3">
+        <AlertTriangle size={20} className="shrink-0" />
+        <div>
+          <h3 className="font-bold text-sm">Tool Under Development</h3>
+          <p className="text-xs text-yellow-500/80">This tool is currently under active development. Some features may be inactive or unstable. Use with caution.</p>
+        </div>
+      </div>
       {/* Header HUD */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
         <div className="flex items-center gap-4">
