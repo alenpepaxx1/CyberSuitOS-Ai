@@ -466,9 +466,15 @@ async function startServer() {
           const whoisJson = require('whois-json');
           let options: any = {};
           if (hostname.endsWith('.al')) {
-            options.server = 'whois.akep.al';
+            options.server = 'whois.nic.al'; 
           }
-          const whoisData = await whoisJson(hostname, options);
+          let whoisData = await whoisJson(hostname, options);
+          
+          // If first attempt fails, try without explicit server
+          if ((!whoisData || whoisData.error) && options.server) {
+            whoisData = await whoisJson(hostname);
+          }
+
           if (whoisData && Object.keys(whoisData).length > 0 && !whoisData.error) {
              return {
                domain: hostname,
@@ -910,7 +916,7 @@ async function startServer() {
           try {
             const crtUrl = `https://crt.sh/?q=%.${searchDomain}&output=json`;
             const response = await axios.get(crtUrl, {
-              timeout: 8000, // Reduced to 8s for even faster response
+              timeout: 20000, // Increased to 20s for better reliability
               headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
               },
