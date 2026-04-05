@@ -957,7 +957,12 @@ async function startServer() {
             await Promise.all(batch.map(async (domain) => {
               if (resolvedSubs.has(domain)) return;
               try {
-                const lookup = await dns.promises.lookup(domain);
+                // Add a 2s timeout for each DNS lookup to prevent hanging
+                const lookup = await Promise.race([
+                  dns.promises.lookup(domain),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                ]) as any;
+                
                 if (lookup && lookup.address) {
                   foundSubdomains.push({ 
                     subdomain: domain, 
