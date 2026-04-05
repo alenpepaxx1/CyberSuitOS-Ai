@@ -9,6 +9,7 @@ import dns from "dns";
 import https from "https";
 import http from "http";
 import net from "net";
+import axios from "axios";
 import { GoogleGenAI, Type } from "@google/genai";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -897,14 +898,14 @@ async function startServer() {
 
       case 'headers':
         try {
-          const isHttps = target.startsWith('https');
-          const protocol = isHttps ? https : http;
           const url = target.startsWith('http') ? target : `http://${target}`;
-          const response: any = await new Promise((resolve, reject) => {
-            const options = isHttps ? { rejectUnauthorized: false } : {};
-            const req = protocol.get(url, options, resolve);
-            req.on('error', reject);
-            req.setTimeout(10000, () => { req.destroy(); reject(new Error('Timeout')); });
+          const agent = new https.Agent({ rejectUnauthorized: false });
+          
+          const response = await axios.get(url, {
+            httpsAgent: agent,
+            timeout: 10000,
+            maxRedirects: 5,
+            validateStatus: () => true // Accept all status codes
           });
           
           const headers = response.headers;
@@ -1243,38 +1244,69 @@ async function startServer() {
 
       case 'tech':
         try {
-          const isHttps = target.startsWith('https');
-          const protocol = isHttps ? https : http;
           const url = target.startsWith('http') ? target : `http://${target}`;
-          const response: any = await new Promise((resolve, reject) => {
-            const options = isHttps ? { rejectUnauthorized: false } : {};
-            const req = protocol.get(url, options, resolve);
-            req.on('error', reject);
-            req.setTimeout(10000, () => { req.destroy(); reject(new Error('Timeout')); });
+          const agent = new https.Agent({ rejectUnauthorized: false });
+          
+          const response = await axios.get(url, {
+            httpsAgent: agent,
+            timeout: 10000,
+            maxRedirects: 5,
+            validateStatus: () => true // Accept all status codes
           });
           
           const tech: any[] = [];
-          const server = response.headers['server'] || '';
-          const xPoweredBy = response.headers['x-powered-by'] || '';
-          const cookies = response.headers['set-cookie'] || [];
+          const headers = response.headers;
+          const html = (typeof response.data === 'string' ? response.data : '').toLowerCase();
           
-          if (server.includes('Apache')) tech.push({ name: 'Apache', category: 'Web Server', confidence: 95 });
+          const server = (headers['server'] || '').toLowerCase();
+          const xPoweredBy = (headers['x-powered-by'] || '').toLowerCase();
+          const cookies = headers['set-cookie'] || [];
+          const cookieStr = (Array.isArray(cookies) ? cookies.join(' ') : String(cookies)).toLowerCase();
+          
+          // Web Servers
+          if (server.includes('apache')) tech.push({ name: 'Apache', category: 'Web Server', confidence: 95 });
           if (server.includes('nginx')) tech.push({ name: 'Nginx', category: 'Web Server', confidence: 95 });
-          if (server.includes('Cloudflare')) tech.push({ name: 'Cloudflare', category: 'CDN', confidence: 95 });
-          if (xPoweredBy.includes('PHP')) tech.push({ name: 'PHP', category: 'Backend Language', confidence: 90 });
-          if (xPoweredBy.includes('Express')) tech.push({ name: 'Express', category: 'Backend Framework', confidence: 85 });
-          if (xPoweredBy.includes('ASP.NET')) tech.push({ name: 'ASP.NET', category: 'Backend Framework', confidence: 90 });
+          if (server.includes('iis') || server.includes('microsoft-iis')) tech.push({ name: 'IIS', category: 'Web Server', confidence: 95 });
+          if (server.includes('litespeed')) tech.push({ name: 'LiteSpeed', category: 'Web Server', confidence: 95 });
           
-          const cookieStr = Array.isArray(cookies) ? cookies.join(' ') : cookies;
-          if (cookieStr.includes('PHPSESSID')) tech.push({ name: 'PHP', category: 'Backend Language', confidence: 80 });
-          if (cookieStr.includes('JSESSIONID')) tech.push({ name: 'Java/JSP', category: 'Backend Language', confidence: 80 });
-          if (cookieStr.includes('ASPSESSIONID')) tech.push({ name: 'ASP', category: 'Backend Language', confidence: 80 });
+          // CDNs / WAFs
+          if (server.includes('cloudflare')) tech.push({ name: 'Cloudflare', category: 'CDN/WAF', confidence: 100 });
+          if (server.includes('akamai')) tech.push({ name: 'Akamai', category: 'CDN', confidence: 95 });
+          if (server.includes('sucuri')) tech.push({ name: 'Sucuri', category: 'WAF', confidence: 95 });
+          if (headers['x-fastly-request-id']) tech.push({ name: 'Fastly', category: 'CDN', confidence: 100 });
+          
+          // Backend Languages & Frameworks
+          if (xPoweredBy.includes('php') || cookieStr.includes('phpsessid') || html.includes('.php?')) tech.push({ name: 'PHP', category: 'Backend Language', confidence: 90 });
+          if (xPoweredBy.includes('express')) tech.push({ name: 'Express.js', category: 'Backend Framework', confidence: 90 });
+          if (xPoweredBy.includes('asp.net') || cookieStr.includes('aspsessionid')) tech.push({ name: 'ASP.NET', category: 'Backend Framework', confidence: 90 });
+          if (cookieStr.includes('jsessionid')) tech.push({ name: 'Java', category: 'Backend Language', confidence: 90 });
+          
+          // Frontend Frameworks
+          if (xPoweredBy.includes('next.js') || html.includes('/_next/') || html.includes('__next')) tech.push({ name: 'Next.js', category: 'Frontend Framework', confidence: 90 });
+          if (xPoweredBy.includes('nuxt') || html.includes('/_nuxt/') || html.includes('__nuxt')) tech.push({ name: 'Nuxt.js', category: 'Frontend Framework', confidence: 90 });
+          if (html.includes('data-reactroot') || html.includes('react-dom')) tech.push({ name: 'React', category: 'Frontend Library', confidence: 80 });
+          if (html.includes('data-v-') || html.includes('vue.js')) tech.push({ name: 'Vue.js', category: 'Frontend Framework', confidence: 80 });
+          if (html.includes('ng-version') || html.includes('ng-app')) tech.push({ name: 'Angular', category: 'Frontend Framework', confidence: 80 });
+          if (html.includes('svelte-')) tech.push({ name: 'Svelte', category: 'Frontend Framework', confidence: 80 });
+          
+          // CMS
+          if (html.includes('wp-content') || html.includes('wp-includes') || cookieStr.includes('wp-settings') || html.includes('generator" content="wordpress')) tech.push({ name: 'WordPress', category: 'CMS', confidence: 100 });
+          if (html.includes('shopify.com') || html.includes('cdn.shopify.com')) tech.push({ name: 'Shopify', category: 'E-commerce', confidence: 100 });
+          if (html.includes('magento')) tech.push({ name: 'Magento', category: 'E-commerce', confidence: 90 });
+          
+          // Analytics & Tracking
+          if (html.includes('google-analytics.com') || html.includes('gtag')) tech.push({ name: 'Google Analytics', category: 'Analytics', confidence: 100 });
+          if (html.includes('googletagmanager.com')) tech.push({ name: 'Google Tag Manager', category: 'Analytics', confidence: 100 });
+          if (html.includes('connect.facebook.net') || html.includes('fbq(')) tech.push({ name: 'Facebook Pixel', category: 'Analytics', confidence: 100 });
           
           if (tech.length === 0) tech.push({ name: 'Unknown Stack', category: 'General', confidence: 50 });
           
-          return res.json(tech);
-        } catch (e) {
-          return res.json([{ name: 'Target Unreachable', category: 'Error', confidence: 0 }]);
+          // Remove duplicates
+          const uniqueTech = Array.from(new Set(tech.map(t => t.name))).map(name => tech.find(t => t.name === name));
+          
+          return res.json(uniqueTech);
+        } catch (e: any) {
+          return res.json([{ name: 'Target Unreachable', category: 'Error', confidence: 0, error: e.message }]);
         }
 
       case 'payloads':
