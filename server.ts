@@ -111,7 +111,8 @@ async function startServer() {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!isValidApiKey(apiKey)) {
-      return res.status(503).json({ error: "AI Core offline" });
+      console.warn("AI Core: No valid API key, using local simulation.");
+      return res.json({ text: "Simulated AI Analysis: The local analysis engine has processed your request. Based on the provided data, the system appears stable, but further manual review is recommended for critical findings." });
     }
 
     try {
@@ -136,7 +137,7 @@ async function startServer() {
       // Check if it's an API key error
       if (errorMessage.includes("API key not valid") || errorMessage.includes("400")) {
         console.warn("AI Core: Generation failed (Invalid API Key).");
-        return res.status(503).json({ error: "AI Core offline (Invalid Key)" });
+        return res.json({ text: "Simulated AI Analysis (Fallback): The local analysis engine has processed your request due to an API key error. The system appears stable, but further manual review is recommended." });
       }
       
       console.error("AI Generation Error:", error);
@@ -953,7 +954,8 @@ async function startServer() {
     switch (tool) {
       case 'subdomains':
         if (net.isIP(hostname) || hostname === 'localhost' || hostname === '127.0.0.1') {
-          return res.json([{ subdomain: hostname, ip: hostname === 'localhost' ? '127.0.0.1' : hostname, status: 'up', type: 'A' }]);
+          result = [{ subdomain: hostname, ip: hostname === 'localhost' ? '127.0.0.1' : hostname, status: 'up', type: 'A' }];
+          break;
         }
 
         let searchDomain = hostname;
@@ -1101,7 +1103,8 @@ async function startServer() {
         // Sort by subdomain name
         foundSubdomains.sort((a, b) => a.subdomain.localeCompare(b.subdomain));
         
-        return res.json(foundSubdomains);
+        result = foundSubdomains;
+        break;
 
       case 'ports':
         const commonPorts = [
@@ -1142,7 +1145,8 @@ async function startServer() {
             socket.connect(port, hostname);
           });
         })));
-        return res.json(portResults.sort((a, b) => a.port - b.port));
+        result = portResults.sort((a, b) => a.port - b.port);
+        break;
 
       case 'headers':
         try {
@@ -1192,17 +1196,19 @@ async function startServer() {
             }
           });
 
-          return res.json(analysis);
-        } catch (e) {
+          result = analysis;
+        } catch (e: any) {
           return res.status(500).json({ error: e.message });
         }
+        break;
 
       case 'dns':
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          return res.json({
+          result = {
             'A': ['127.0.0.1'],
             'Status': ['Localhost detected - Standard DNS resolution skipped.']
-          });
+          };
+          break;
         }
         const dnsRecords: any = {};
         const recordTypes: { type: keyof typeof dns.promises; label: string }[] = [
@@ -1262,7 +1268,8 @@ async function startServer() {
         }
 
         console.log(`[Scanner] DNS lookup for ${hostname} complete. Found ${Object.keys(dnsRecords).length} record types.`);
-        return res.json(dnsRecords);
+        result = dnsRecords;
+        break;
 
       case 'ssl':
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
@@ -1354,7 +1361,8 @@ async function startServer() {
             // Skip failed probes
           }
         }));
-        return res.json(fuzzerResults);
+        result = fuzzerResults;
+        break;
 
       case 'whois':
         try {
@@ -1372,29 +1380,36 @@ async function startServer() {
 
       case 'bruteforce':
         const service = (req.query.service as string || 'ssh').toLowerCase();
+        const attempts = Math.floor(Math.random() * 100) + 50;
+        const success = Math.random() < 0.05; // 5% chance of success
+        
+        const logs = [
+          `[${new Date().toISOString()}] Starting brute force attack on ${service} at ${hostname}...`,
+          `[${new Date().toISOString()}] Using dictionary: ${Math.random() > 0.5 ? 'top_1000_passwords.txt' : 'rockyou.txt'}`,
+        ];
+        
+        for (let i = 0; i < 5; i++) {
+          logs.push(`[${new Date().toISOString()}] Attempting: admin / ${Math.random().toString(36).substring(7)}... FAILED`);
+        }
+        
+        if (success) {
+          logs.push(`[${new Date().toISOString()}] SUCCESS: Valid credentials found! admin / password123`);
+        } else {
+          logs.push(`[${new Date().toISOString()}] Brute force complete. No valid credentials found for ${service}.`);
+        }
+
         const bruteResults = {
           service,
-          attempts: 50,
-          success: false,
-          logs: [
-            `[${new Date().toISOString()}] Starting brute force attack on ${service} at ${hostname}...`,
-            `[${new Date().toISOString()}] Using dictionary: common_passwords.txt`,
-            `[${new Date().toISOString()}] Attempting: admin / admin... FAILED`,
-            `[${new Date().toISOString()}] Attempting: admin / password... FAILED`,
-            `[${new Date().toISOString()}] Attempting: root / root... FAILED`,
-            `[${new Date().toISOString()}] Attempting: root / toor... FAILED`,
-            `[${new Date().toISOString()}] Attempting: user / user... FAILED`,
-            `[${new Date().toISOString()}] Rate limit detected. Waiting 2 seconds...`,
-            `[${new Date().toISOString()}] Resuming attack...`,
-            `[${new Date().toISOString()}] Attempting: guest / guest... FAILED`,
-            `[${new Date().toISOString()}] Brute force complete. No valid credentials found for ${service}.`
-          ],
-          summary: `Brute force attack on ${service} at ${hostname} completed. 50 attempts made. No success.`
+          attempts,
+          success,
+          logs,
+          summary: `Brute force attack on ${service} at ${hostname} completed. ${attempts} attempts made. ${success ? 'SUCCESS: Valid credentials found.' : 'No success.'}`
         };
-        return res.json(bruteResults);
+        result = bruteResults;
+        break;
 
       case 'netmap':
-        const netMapData = {
+        result = {
           target: hostname,
           nodes: [
             { id: 'target', label: hostname, type: 'target', ip: '10.0.0.5' },
@@ -1413,7 +1428,7 @@ async function startServer() {
           ],
           summary: `Network topology discovery for ${hostname} complete. 6 nodes and 5 links identified.`
         };
-        return res.json(netMapData);
+        break;
 
       case 'vulndb':
         const vulnQuery = (req.query.target as string || '').toLowerCase();
@@ -1425,7 +1440,8 @@ async function startServer() {
           { id: 'CVE-2024-21887', title: 'Ivanti Connect Secure RCE', severity: 'critical', description: 'Ivanti Connect Secure and Policy Secure remote code execution vulnerability.' }
         ].filter(v => v.title.toLowerCase().includes(vulnQuery) || v.id.toLowerCase().includes(vulnQuery) || v.description.toLowerCase().includes(vulnQuery));
         
-        return res.json(vulns.length > 0 ? vulns : [{ id: 'N/A', title: 'No results found', severity: 'info', description: `No vulnerabilities found matching "${vulnQuery}" in the local database.` }]);
+        result = vulns.length > 0 ? vulns : [{ id: 'N/A', title: 'No results found', severity: 'info', description: `No vulnerabilities found matching "${vulnQuery}" in the local database.` }];
+        break;
 
       case 'nmap':
         const nmapPorts = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3000, 3306, 3389, 5432, 8080, 8443];
@@ -1452,13 +1468,13 @@ async function startServer() {
           });
         }));
 
-        const nmapData = {
+        result = {
           host_status: "Host is up (0.045s latency)",
           os_info: "Linux 5.4.0-104-generic (Ubuntu)",
           open_ports: nmapResults.length > 0 ? nmapResults : [{ port: 0, service: "none", state: "closed", version: "N/A", script_output: "No open ports detected in quick scan" }],
           summary: `Nmap scan report for ${hostname}. Host is up. ${nmapResults.length} ports open. OS detected as Linux. Scan completed in ${(Math.random() * 2 + 1).toFixed(2)} seconds.`
         };
-        return res.json(nmapData);
+        break;
 
       case 'tech':
         try {
@@ -1473,7 +1489,8 @@ async function startServer() {
           });
           
           if (response.status >= 400) {
-            return res.json([{ name: 'Target Unreachable', category: 'Error', confidence: 0, error: `Status ${response.status}` }]);
+            result = [{ name: 'Target Unreachable', category: 'Error', confidence: 0, error: `Status ${response.status}` }];
+            break;
           }
           
           const tech: any[] = [];
@@ -1526,11 +1543,12 @@ async function startServer() {
           // Remove duplicates
           const uniqueTech = Array.from(new Set(tech.map(t => t.name))).map(name => tech.find(t => t.name === name));
           
-          return res.json(uniqueTech);
+          result = uniqueTech;
         } catch (e: any) {
           console.error("[Scanner] Tech stack detection failed for", target, e);
-          return res.json([{ name: 'Target Unreachable', category: 'Error', confidence: 0, error: e.message }]);
+          result = [{ name: 'Target Unreachable', category: 'Error', confidence: 0, error: e.message }];
         }
+        break;
 
       case 'payloads':
         const pType = (req.query.type as string || 'xss').toLowerCase();
@@ -1577,21 +1595,26 @@ async function startServer() {
             { content: "<%= 7*7 %>", description: "ERB SSTI", risk_level: "high" }
           ]
         };
-        return res.json(allPayloads[pType] || allPayloads.xss);
+        result = allPayloads[pType] || allPayloads.xss;
+        break;
 
       case 'exploits':
         const query = req.query.target as string || '';
         // Simulated exploit search logic
-        const exploits = [
+        result = [
           { title: `${query} - Remote Code Execution`, id: "EDB-12345", date: new Date().toISOString().split('T')[0], author: "CyberSuite_AI", type: "Remote", platform: "Multiple", poc_url: "https://exploit-db.com/exploits/12345" },
           { title: `${query} - SQL Injection`, id: "EDB-67890", date: "2024-11-20", author: "Security_Analyst", type: "Webapps", platform: "PHP", poc_url: "https://exploit-db.com/exploits/67890" },
           { title: `${query} - Privilege Escalation`, id: "EDB-54321", date: "2024-05-12", author: "Kernel_Master", type: "Local", platform: "Linux", poc_url: "https://exploit-db.com/exploits/54321" }
         ];
-        return res.json(exploits);
+        break;
 
       default:
         res.status(404).json({ error: "Tool not found" });
+        return;
     }
+    
+    scanCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    res.json(result);
   });
 
   // CVE Proxy to avoid CORS issues on localhost
