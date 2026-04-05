@@ -1023,25 +1023,57 @@ async function startServer() {
 
       case 'whois':
         try {
-          // Real WHOIS is hard in Node without external binaries, so we simulate with some real data
-          const whoisData = {
-            domain: hostname,
-            registrar: "GoDaddy.com, LLC",
-            creation_date: "2010-05-12T10:00:00Z",
-            expiration_date: "2028-05-12T10:00:00Z",
-            updated_date: "2023-01-15T12:30:00Z",
-            name_servers: ["ns1.example.com", "ns2.example.com"],
-            status: "clientTransferProhibited",
-            registrant: {
-              organization: "Privacy Protection Service",
-              country: "US",
-              state: "Arizona"
-            },
-            raw: `Domain Name: ${hostname.toUpperCase()}\nRegistry Domain ID: 123456789_DOMAIN_COM-VRSN\nRegistrar WHOIS Server: whois.godaddy.com\nRegistrar URL: http://www.godaddy.com\nUpdated Date: 2023-01-15T12:30:00Z\nCreation Date: 2010-05-12T10:00:00Z\nRegistry Expiry Date: 2028-05-12T10:00:00Z\nRegistrar: GoDaddy.com, LLC\nRegistrar IANA ID: 146\nRegistrar Abuse Contact Email: abuse@godaddy.com\nRegistrar Abuse Contact Phone: +1.4806242505\nDomain Status: clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited\nDomain Status: clientRenewProhibited https://icann.org/epp#clientRenewProhibited\nDomain Status: clientTransferProhibited https://icann.org/epp#clientTransferProhibited\nDomain Status: clientUpdateProhibited https://icann.org/epp#clientUpdateProhibited\nName Server: NS1.EXAMPLE.COM\nName Server: NS2.EXAMPLE.COM\nDNSSEC: unsigned\nURL of the ICANN Whois Inaccuracy Complaint Form: https://www.icann.org/wicf/`
-          };
-          return res.json(whoisData);
+          // Use RDAP for WHOIS data
+          const rdapUrl = `https://rdap.org/domain/${hostname}`;
+          const response: any = await new Promise((resolve, reject) => {
+            const req = https.get(rdapUrl, (res) => {
+              let data = '';
+              res.on('data', (chunk) => data += chunk);
+              res.on('end', () => resolve({ statusCode: res.statusCode, data }));
+            });
+            req.on('error', reject);
+            req.setTimeout(5000, () => { req.destroy(); reject(new Error('Timeout')); });
+          });
+
+          if (response.statusCode === 200 && response.data) {
+            const rdapData = JSON.parse(response.data);
+            
+            // Extract Registrar
+            let registrar = "Unknown";
+            const registrarEntity = rdapData.entities?.find((e: any) => e.roles?.includes('registrar'));
+            if (registrarEntity && registrarEntity.vcardArray && registrarEntity.vcardArray[1]) {
+              const fnEntry = registrarEntity.vcardArray[1].find((v: any) => v[0] === 'fn');
+              if (fnEntry) registrar = fnEntry[3];
+            }
+
+            // Extract Dates
+            const getEventDate = (action: string) => {
+              const event = rdapData.events?.find((e: any) => e.eventAction === action);
+              return event ? event.eventDate : "Unknown";
+            };
+            const creation_date = getEventDate('registration');
+            const expiration_date = getEventDate('expiration');
+            const updated_date = getEventDate('last changed');
+
+            // Extract Name Servers
+            const name_servers = rdapData.nameservers?.map((ns: any) => ns.ldhName) || [];
+
+            const whoisData = {
+              domain: hostname,
+              registrar,
+              creation_date,
+              expiration_date,
+              updated_date,
+              name_servers,
+              status: rdapData.status || [],
+              raw: JSON.stringify(rdapData, null, 2)
+            };
+            return res.json(whoisData);
+          } else {
+            return res.status(response.statusCode === 404 ? 404 : 500).json({ error: "Domain not found or RDAP error" });
+          }
         } catch (e) {
-          return res.status(500).json({ error: "Whois failed" });
+          return res.status(500).json({ error: "Whois lookup failed" });
         }
 
       case 'bruteforce':
