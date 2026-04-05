@@ -417,6 +417,19 @@ async function startServer() {
 
   // Advanced Vulnerability Scanner API
   async function performWhoisLookup(hostname: string) {
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || net.isIP(hostname)) {
+      return {
+        domain: hostname,
+        registrar: "Internal/Local Network",
+        registrant: "System Administrator",
+        creationDate: "N/A",
+        expiryDate: "N/A",
+        updatedDate: "N/A",
+        nameServers: ["Localhost"],
+        status: ["active"],
+        raw: "Local/Internal address - WHOIS not applicable."
+      };
+    }
     try {
       const domainParts = hostname.split('.');
       let rdapData = null;
@@ -583,6 +596,9 @@ async function startServer() {
       if (isIP) {
         results.dns.a = [hostname];
         results.ip = hostname;
+      } else if (hostname === 'localhost') {
+        results.dns.a = ['127.0.0.1'];
+        results.ip = '127.0.0.1';
       } else {
         const resolveDNS = async (host: string) => {
           try {
@@ -874,8 +890,8 @@ async function startServer() {
 
     switch (tool) {
       case 'subdomains':
-        if (net.isIP(hostname)) {
-          return res.json([{ subdomain: hostname, ip: hostname, status: 'up', type: 'A' }]);
+        if (net.isIP(hostname) || hostname === 'localhost' || hostname === '127.0.0.1') {
+          return res.json([{ subdomain: hostname, ip: hostname === 'localhost' ? '127.0.0.1' : hostname, status: 'up', type: 'A' }]);
         }
 
         let searchDomain = hostname;
@@ -989,7 +1005,7 @@ async function startServer() {
       case 'ports':
         const commonPorts = [
           21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 465, 587, 993, 995, 1433, 1521, 
-          2049, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 9000, 9200, 27017
+          2049, 3000, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 9000, 9200, 27017
         ];
         const portResults: any[] = [];
         
@@ -1077,6 +1093,12 @@ async function startServer() {
         }
 
       case 'dns':
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return res.json({
+            'A': ['127.0.0.1'],
+            'Status': ['Localhost detected - Standard DNS resolution skipped.']
+          });
+        }
         const dnsRecords: any = {};
         const recordTypes: { type: keyof typeof dns.promises; label: string }[] = [
           { type: 'resolve4', label: 'A' },
@@ -1128,6 +1150,17 @@ async function startServer() {
         return res.json(dnsRecords);
 
       case 'ssl':
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return res.json({
+            subject: { CN: 'localhost' },
+            issuer: { CN: 'Self-Signed' },
+            valid_from: new Date().toISOString(),
+            valid_to: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            fingerprint: 'LOCAL-CERT-FINGERPRINT',
+            status: "Internal/Self-Signed",
+            vulnerabilities: ["Local development environment detected"]
+          });
+        }
         try {
           const options = {
             host: hostname,
@@ -1278,7 +1311,7 @@ async function startServer() {
         return res.json(vulns.length > 0 ? vulns : [{ id: 'N/A', title: 'No results found', severity: 'info', description: `No vulnerabilities found matching "${vulnQuery}" in the local database.` }]);
 
       case 'nmap':
-        const nmapPorts = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 5432, 8080, 8443];
+        const nmapPorts = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3000, 3306, 3389, 5432, 8080, 8443];
         const nmapResults: any[] = [];
         
         await Promise.all(nmapPorts.map(async (port) => {
