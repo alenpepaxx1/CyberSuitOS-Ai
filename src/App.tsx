@@ -461,10 +461,13 @@ function MainContent() {
               <Globe className="w-3 h-3 text-emerald-500" />
               <span>NODE: <span className="text-white">{stats?.hostname || 'LOCAL_HOST'}</span></span>
             </div>
-            <div className="flex items-center gap-2">
-              <TerminalIcon className="w-3 h-3 text-gray-500" />
+            <button 
+              onClick={() => window.dispatchEvent(new CustomEvent('terminal-open'))}
+              className="flex items-center gap-2 hover:text-emerald-500 transition-colors"
+            >
+              <TerminalIcon className="w-3 h-3" />
               <span>SHELL: <span className="text-white">ZSH</span></span>
-            </div>
+            </button>
             <div className="text-emerald-500/40">
               {new Date().toLocaleTimeString()}
             </div>
