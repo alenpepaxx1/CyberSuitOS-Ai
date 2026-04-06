@@ -422,7 +422,14 @@ async function startServer() {
   let ianaCacheTime: number = 0;
 
   async function performWhoisLookup(hostname: string) {
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || net.isIP(hostname)) {
+    const os = await import('os');
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      const networkInterfaces = os.networkInterfaces();
+      const localIps = Object.values(networkInterfaces)
+        .flat()
+        .filter((details: any) => details.family === 'IPv4' && !details.internal)
+        .map((details: any) => details.address);
+
       return {
         domain: hostname,
         registrar: "Internal/Local Network",
@@ -432,9 +439,56 @@ async function startServer() {
         updatedDate: "N/A",
         nameServers: ["Localhost"],
         status: ["active"],
-        raw: "Local/Internal address - WHOIS not applicable."
+        raw: "Local/Internal address - WHOIS not applicable.",
+        details: {
+          hostname: os.hostname(),
+          platform: os.platform(),
+          arch: os.arch(),
+          uptime: `${Math.floor(os.uptime() / 3600)}h ${Math.floor((os.uptime() % 3600) / 60)}m`,
+          localIps: localIps
+        },
+        securityRisk: "None (Local Environment)"
       };
     }
+
+    // IP WHOIS support
+    if (net.isIP(hostname)) {
+      try {
+        const response = await axios.get(`https://rdap.db.ripe.net/ip/${hostname}`, {
+          headers: { 'Accept': 'application/rdap+json' },
+          timeout: 10000,
+          validateStatus: () => true
+        });
+        
+        if (response.status === 200) {
+          const rdapData = response.data;
+          return {
+            domain: hostname,
+            registrar: rdapData.entities?.[0]?.vcardArray?.[1]?.[1]?.[3]?.[3] || "Unknown",
+            registrant: rdapData.name || "Unknown",
+            creationDate: rdapData.events?.find((e: any) => e.eventAction === 'registration')?.eventDate || "Unknown",
+            expiryDate: "N/A",
+            updatedDate: rdapData.events?.find((e: any) => e.eventAction === 'last changed')?.eventDate || "Unknown",
+            nameServers: [],
+            status: [rdapData.status?.[0] || "active"],
+            raw: JSON.stringify(rdapData, null, 2),
+            details: {
+              handle: rdapData.handle,
+              parentHandle: rdapData.parentHandle,
+              ipVersion: rdapData.ipVersion,
+              startAddress: rdapData.startAddress,
+              endAddress: rdapData.endAddress,
+              country: rdapData.country,
+              type: rdapData.type
+            },
+            securityRisk: "Low (IP Resource)"
+          };
+        }
+      } catch (e) {
+        console.warn(`[Scanner] IP RDAP fetch failed for ${hostname}:`, e);
+      }
+    }
+
     try {
       const domainParts = hostname.split('.');
       let rdapData = null;
@@ -462,6 +516,7 @@ async function startServer() {
       }
 
       // Try to fetch RDAP, stripping subdomains if we get 404/400
+      const originalParts = [...domainParts];
       while (domainParts.length >= 2) {
         finalDomain = domainParts.join('.');
         const tld = domainParts[domainParts.length - 1];
@@ -490,112 +545,98 @@ async function startServer() {
       }
 
       if (rdapData) {
+        const creationDate = rdapData.events?.find((e: any) => e.eventAction === 'registration')?.eventDate || "Unknown";
+        const expiryDate = rdapData.events?.find((e: any) => e.eventAction === 'expiration')?.eventDate || "Unknown";
+        
+        // Security Risk Assessment
+        let risk = "Low";
+        let riskDetails = [];
+        
+        if (creationDate !== "Unknown") {
+          const ageInDays = (now - new Date(creationDate).getTime()) / (1000 * 60 * 60 * 24);
+          if (ageInDays < 30) {
+            risk = "High";
+            riskDetails.push("Domain is very new (less than 30 days old). High risk of phishing/malware.");
+          } else if (ageInDays < 90) {
+            risk = "Medium";
+            riskDetails.push("Domain is relatively new (less than 90 days old).");
+          }
+        }
+
+        if (expiryDate !== "Unknown") {
+          const daysToExpiry = (new Date(expiryDate).getTime() - now) / (1000 * 60 * 60 * 24);
+          if (daysToExpiry < 30) {
+            risk = risk === "High" ? "High" : "Medium";
+            riskDetails.push("Domain expires soon (less than 30 days). Potential for domain hijacking or service interruption.");
+          }
+        }
+
+        // Parse entities
+        const getEntityName = (role: string) => {
+          const entity = rdapData.entities?.find((e: any) => e.roles?.includes(role));
+          return entity?.vcardArray?.[1]?.find((v: any) => v[0] === 'fn')?.[3] || "Unknown";
+        };
+
         return {
           domain: finalDomain,
-          registrar: rdapData.entities?.[0]?.vcardArray?.[1]?.[1]?.[3]?.[3] || "Unknown",
-          registrant: "Unknown",
-          creationDate: rdapData.events?.find((e: any) => e.eventAction === 'registration')?.eventDate || "Unknown",
-          expiryDate: rdapData.events?.find((e: any) => e.eventAction === 'expiration')?.eventDate || "Unknown",
+          registrar: getEntityName('registrar'),
+          registrant: getEntityName('registrant'),
+          admin: getEntityName('administrative'),
+          tech: getEntityName('technical'),
+          creationDate,
+          expiryDate,
           updatedDate: rdapData.events?.find((e: any) => e.eventAction === 'last changed')?.eventDate || "Unknown",
           nameServers: rdapData.nameservers?.map((ns: any) => ns.ldhName) || [],
-          status: rdapData.status || [],
-          raw: JSON.stringify(rdapData, null, 2)
+          status: rdapData.status || ["active"],
+          raw: JSON.stringify(rdapData, null, 2),
+          securityRisk: risk,
+          riskDetails: riskDetails.length > 0 ? riskDetails : ["No immediate domain-level risks detected."]
         };
       }
 
-      if (!rdapData) {
-        // Fallback to whois-json if RDAP fails or is not supported for TLD
-        try {
-          const whoisJson = require('whois-json').default || require('whois-json');
-          let options: any = { timeout: 10000 }; // Set a 10s timeout for each attempt
-          if (hostname.endsWith('.al')) {
-            options.server = 'whois.nic.al'; 
-          }
-          
-          let whoisData: any = null;
-          let attempts = 0;
-          const maxAttempts = 2;
-
-          while (attempts < maxAttempts) {
-            try {
-              whoisData = await whoisJson(hostname, options);
-              if (whoisData && Object.keys(whoisData).length > 0 && !whoisData.error) {
-                break;
-              }
-            } catch (e: any) {
-              // Only log if it's the last attempt to reduce noise
-              if (attempts === maxAttempts - 1) {
-                // console.warn(`[Scanner] WHOIS attempt ${attempts + 1} failed:`, e.message);
-              }
-            }
-            
-            attempts++;
-            // If first attempt with server failed, try without explicit server
-            if (options.server) {
-              delete options.server;
-            }
-          }
-
-          if (whoisData && Object.keys(whoisData).length > 0 && !whoisData.error) {
-             return {
-               domain: hostname,
-               registrar: whoisData.registrar || whoisData.Registrar || "Unknown",
-               registrant: whoisData.registrant || whoisData.registrantName || whoisData.Registrant || "Unknown",
-               creationDate: whoisData.creationDate || whoisData.CreationDate || "Unknown",
-               expiryDate: whoisData.registrarRegistrationExpirationDate || whoisData.registryExpiryDate || whoisData.RegistryExpiryDate || "Unknown",
-               updatedDate: whoisData.updatedDate || whoisData.UpdatedDate || "Unknown",
-               nameServers: whoisData.nameServer ? (Array.isArray(whoisData.nameServer) ? whoisData.nameServer : whoisData.nameServer.split(' ')) : [],
-               raw: JSON.stringify(whoisData, null, 2)
-             };
-          }
-          return null;
-        } catch (e) {
-           // Suppress fallback errors
+      // Fallback to whois-json if RDAP fails or is not supported for TLD
+      try {
+        const whoisJson = require('whois-json').default || require('whois-json');
+        let options: any = { timeout: 10000 };
+        if (hostname.endsWith('.al')) {
+          options.server = 'whois.nic.al'; 
         }
-        return null;
-      }
+        
+        let whoisData: any = null;
+        let attempts = 0;
+        const maxAttempts = 2;
 
-      // Extract Registrar & Registrant
-      let registrar = "Unknown";
-      let registrant = "Unknown";
-      
-      const registrarEntity = rdapData.entities?.find((e: any) => e.roles?.includes('registrar'));
-      if (registrarEntity && registrarEntity.vcardArray && registrarEntity.vcardArray[1]) {
-        const fnEntry = registrarEntity.vcardArray[1].find((v: any) => v[0] === 'fn');
-        if (fnEntry) registrar = fnEntry[3];
-      }
+        while (attempts < maxAttempts) {
+          try {
+            whoisData = await whoisJson(hostname, options);
+            if (whoisData && Object.keys(whoisData).length > 0 && !whoisData.error) {
+              break;
+            }
+          } catch (e: any) {
+            // Silently fail
+          }
+          attempts++;
+          if (options.server) delete options.server;
+        }
 
-      const registrantEntity = rdapData.entities?.find((e: any) => e.roles?.includes('registrant'));
-      if (registrantEntity && registrantEntity.vcardArray && registrantEntity.vcardArray[1]) {
-        const fnEntry = registrantEntity.vcardArray[1].find((v: any) => v[0] === 'fn');
-        if (fnEntry) registrant = fnEntry[3];
-      }
-
-      // Extract Dates
-      const getEventDate = (action: string) => {
-        const event = rdapData.events?.find((e: any) => e.eventAction === action);
-        return event ? event.eventDate : "Unknown";
-      };
-      const creationDate = getEventDate('registration');
-      const expiryDate = getEventDate('expiration');
-      const updatedDate = getEventDate('last changed');
-
-      // Extract Name Servers
-      const nameServers = rdapData.nameservers?.map((ns: any) => ns.ldhName) || [];
-
-      return {
-        domain: finalDomain,
-        registrar,
-        registrant,
-        creationDate,
-        expiryDate,
-        updatedDate,
-        nameServers,
-        status: rdapData.status || [],
-        raw: JSON.stringify(rdapData, null, 2)
-      };
+        if (whoisData && Object.keys(whoisData).length > 0 && !whoisData.error) {
+           return {
+             domain: hostname,
+             registrar: whoisData.registrar || whoisData.Registrar || "Unknown",
+             registrant: whoisData.registrant || whoisData.registrantName || whoisData.Registrant || "Unknown",
+             creationDate: whoisData.creationDate || whoisData.CreationDate || "Unknown",
+             expiryDate: whoisData.registrarRegistrationExpirationDate || whoisData.registryExpiryDate || whoisData.RegistryExpiryDate || "Unknown",
+             updatedDate: whoisData.updatedDate || whoisData.UpdatedDate || "Unknown",
+             nameServers: whoisData.nameServer ? (Array.isArray(whoisData.nameServer) ? whoisData.nameServer : whoisData.nameServer.split(' ')) : [],
+             raw: JSON.stringify(whoisData, null, 2),
+             securityRisk: "Unknown (Legacy WHOIS)",
+             riskDetails: ["Security risk assessment not available for legacy WHOIS data."]
+           };
+        }
+      } catch (e) {}
+      return null;
     } catch (e) {
-      console.error("[Scanner] Whois error:", e);
+      console.error("[Scanner] WHOIS/RDAP lookup error:", e);
       return null;
     }
   }
