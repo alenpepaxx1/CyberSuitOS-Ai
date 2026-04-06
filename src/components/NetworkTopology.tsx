@@ -5,7 +5,7 @@ import {
   Shield, Server, Laptop, Router, AlertTriangle, 
   Info, Activity, Zap, Globe, Database, Cpu, 
   Lock, Unlock, Radio, Wifi, Search, RefreshCw,
-  Maximize2, Minimize2, ZoomIn, ZoomOut
+  Maximize2, Minimize2, ZoomIn, ZoomOut, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -163,85 +163,101 @@ export default function NetworkTopology() {
       .attr('width', width)
       .attr('height', height);
 
-    svg.selectAll('*').remove();
+    // Initialize persistent groups if they don't exist
+    if (svg.select('defs').empty()) {
+      const defs = svg.append('defs');
+      
+      // Glow filter
+      const filter = defs.append('filter')
+        .attr('id', 'glow')
+        .attr('x', '-50%')
+        .attr('y', '-50%')
+        .attr('width', '200%')
+        .attr('height', '200%');
 
-    // Define gradients and filters
-    const defs = svg.append('defs');
+      filter.append('feGaussianBlur')
+        .attr('stdDeviation', '3')
+        .attr('result', 'blur');
+      filter.append('feComposite')
+        .attr('in', 'SourceGraphic')
+        .attr('in2', 'blur')
+        .attr('operator', 'over');
 
-    // Glow filter
-    const filter = defs.append('filter')
-      .attr('id', 'glow')
-      .attr('x', '-50%')
-      .attr('y', '-50%')
-      .attr('width', '200%')
-      .attr('height', '200%');
-
-    filter.append('feGaussianBlur')
-      .attr('stdDeviation', '3')
-      .attr('result', 'blur');
-    filter.append('feComposite')
-      .attr('in', 'SourceGraphic')
-      .attr('in2', 'blur')
-      .attr('operator', 'over');
-
-    // Radar Gradient
-    const radarGradient = defs.append('linearGradient')
-      .attr('id', 'radar-gradient')
-      .attr('x1', '0%')
-      .attr('y1', '0%')
-      .attr('x2', '100%')
-      .attr('y2', '0%');
-    radarGradient.append('stop').attr('offset', '0%').attr('stop-color', '#06b6d4').attr('stop-opacity', 0.8);
-    radarGradient.append('stop').attr('offset', '100%').attr('stop-color', '#06b6d4').attr('stop-opacity', 0);
-
-    const g = svg.append('g');
-
-    // Radar Background
-    const radarGroup = g.append('g').attr('class', 'radar-background');
-    
-    // Draw concentric circles
-    for (let i = 1; i <= 4; i++) {
-      radarGroup.append('circle')
-        .attr('cx', 0)
-        .attr('cy', 0)
-        .attr('r', i * 150)
-        .attr('fill', 'none')
-        .attr('stroke', '#06b6d4')
-        .attr('stroke-width', 0.5)
-        .attr('opacity', 0.2)
-        .attr('stroke-dasharray', i % 2 === 0 ? '4,4' : 'none');
+      // Radar Gradient
+      const radarGradient = defs.append('linearGradient')
+        .attr('id', 'radar-gradient')
+        .attr('x1', '0%')
+        .attr('y1', '0%')
+        .attr('x2', '100%')
+        .attr('y2', '0%');
+      radarGradient.append('stop').attr('offset', '0%').attr('stop-color', '#06b6d4').attr('stop-opacity', 0.8);
+      radarGradient.append('stop').attr('offset', '100%').attr('stop-color', '#06b6d4').attr('stop-opacity', 0);
     }
 
-    // Draw crosshairs
-    radarGroup.append('line').attr('x1', -600).attr('y1', 0).attr('x2', 600).attr('y2', 0).attr('stroke', '#06b6d4').attr('stroke-width', 0.5).attr('opacity', 0.2);
-    radarGroup.append('line').attr('x1', 0).attr('y1', -600).attr('x2', 0).attr('y2', 600).attr('stroke', '#06b6d4').attr('stroke-width', 0.5).attr('opacity', 0.2);
+    let mainG = svg.select<SVGGElement>('g.main-group');
+    if (mainG.empty()) {
+      mainG = svg.append('g').attr('class', 'main-group');
+      
+      // Radar Background (Static)
+      const radarGroup = mainG.append('g').attr('class', 'radar-background');
+      for (let i = 1; i <= 4; i++) {
+        radarGroup.append('circle')
+          .attr('cx', 0)
+          .attr('cy', 0)
+          .attr('r', i * 150)
+          .attr('fill', 'none')
+          .attr('stroke', '#06b6d4')
+          .attr('stroke-width', 0.5)
+          .attr('opacity', 0.2)
+          .attr('stroke-dasharray', i % 2 === 0 ? '4,4' : 'none');
+      }
+      radarGroup.append('line').attr('x1', -600).attr('y1', 0).attr('x2', 600).attr('y2', 0).attr('stroke', '#06b6d4').attr('stroke-width', 0.5).attr('opacity', 0.2);
+      radarGroup.append('line').attr('x1', 0).attr('y1', -600).attr('x2', 0).attr('y2', 600).attr('stroke', '#06b6d4').attr('stroke-width', 0.5).attr('opacity', 0.2);
 
-    // Radar sweep
-    const sweep = radarGroup.append('path')
-      .attr('d', 'M0,0 L0,-600 A600,600 0 0,1 155,-579 Z') // 15 degrees arc
-      .attr('fill', 'url(#radar-gradient)')
-      .attr('opacity', 0.4);
+      // Radar sweep with CSS animation
+      const sweep = radarGroup.append('path')
+        .attr('d', 'M0,0 L0,-600 A600,600 0 0,1 155,-579 Z')
+        .attr('fill', 'url(#radar-gradient)')
+        .attr('opacity', 0.4)
+        .style('transform-origin', '0 0')
+        .style('animation', 'radar-rotate 4s linear infinite');
 
-    const animateRadar = () => {
-      sweep
-        .attr('transform', 'rotate(0)')
-        .transition()
-        .duration(4000)
-        .ease(d3.easeLinear)
-        .attr('transform', 'rotate(360)')
-        .on('end', animateRadar);
-    };
-    animateRadar();
+      // Add CSS for radar rotation if not present
+      if (document.getElementById('radar-style') === null) {
+        const style = document.createElement('style');
+        style.id = 'radar-style';
+        style.innerHTML = `
+          @keyframes radar-rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes attack-dash {
+            to { stroke-dashoffset: -20; }
+          }
+          @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    }
+
+    // Dynamic layers
+    mainG.selectAll('.dynamic-layer').remove();
+    const linkGroup = mainG.append('g').attr('class', 'dynamic-layer links');
+    const packetGroup = mainG.append('g').attr('class', 'dynamic-layer packets');
+    const attackGroup = mainG.append('g').attr('class', 'dynamic-layer attacks');
+    const nodeGroup = mainG.append('g').attr('class', 'dynamic-layer nodes');
 
     // Zoom behavior
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.1, 4])
       .on('zoom', (event) => {
-        g.attr('transform', event.transform);
+        mainG.attr('transform', event.transform);
         setZoomLevel(event.transform.k);
       });
     zoomRef.current = zoom;
-
     svg.call(zoom);
 
     const simulation = d3.forceSimulation<Node>(nodes)
@@ -251,7 +267,7 @@ export default function NetworkTopology() {
       .force('collision', d3.forceCollide().radius(60));
 
     // Links
-    const link = g.append('g')
+    const link = linkGroup
       .selectAll('path')
       .data(links)
       .join('path')
@@ -262,53 +278,26 @@ export default function NetworkTopology() {
       .attr('stroke-dasharray', d => (d.source as Node).status === 'compromised' || (d.target as Node).status === 'compromised' ? '4,4' : 'none')
       .attr('opacity', 0.6);
 
-    // Packet Animation (Particles)
-    const packets = g.append('g');
-    
+    // Packet Animation
     const animatePackets = () => {
-      packets.selectAll('g').remove();
-      
+      packetGroup.selectAll('g').remove();
       links.forEach((l, i) => {
         const source = l.source as Node;
         const target = l.target as Node;
-        
-        // Add more packets for a busier network
         if (Math.random() > 0.1) {
           const isCompromised = source.status === 'compromised' || target.status === 'compromised';
-          const packetGroup = packets.append('g');
-          
-          const packet = packetGroup.append('circle')
-            .attr('r', isCompromised ? 3 : 2)
-            .attr('fill', isCompromised ? '#ef4444' : '#06b6d4')
-            .attr('filter', 'url(#glow)');
-
-          const tail = packetGroup.append('circle')
-            .attr('r', isCompromised ? 2 : 1.5)
-            .attr('fill', isCompromised ? '#ef4444' : '#06b6d4')
-            .attr('opacity', 0.5);
-
-          const duration = 1.5 + Math.random() * 2; // in seconds
-          
-          packet.append('animateMotion')
-            .attr('dur', `${duration}s`)
-            .attr('repeatCount', 'indefinite')
-            .append('mpath')
-            .attr('xlink:href', `#link-${i}`);
-            
-          tail.append('animateMotion')
-            .attr('dur', `${duration}s`)
-            .attr('begin', '0.1s')
-            .attr('repeatCount', 'indefinite')
-            .append('mpath')
-            .attr('xlink:href', `#link-${i}`);
+          const pG = packetGroup.append('g');
+          pG.append('circle').attr('r', isCompromised ? 3 : 2).attr('fill', isCompromised ? '#ef4444' : '#06b6d4').attr('filter', 'url(#glow)')
+            .append('animateMotion').attr('dur', `${1.5 + Math.random() * 2}s`).attr('repeatCount', 'indefinite').append('mpath').attr('xlink:href', `#link-${i}`);
+          pG.append('circle').attr('r', isCompromised ? 2 : 1.5).attr('fill', isCompromised ? '#ef4444' : '#06b6d4').attr('opacity', 0.5)
+            .append('animateMotion').attr('dur', `${1.5 + Math.random() * 2}s`).attr('begin', '0.1s').attr('repeatCount', 'indefinite').append('mpath').attr('xlink:href', `#link-${i}`);
         }
       });
     };
-
     animatePackets();
 
     // Attack Lines
-    const attackLine = g.append('g')
+    const attackLine = attackGroup
       .selectAll('line')
       .data(activeAttacks)
       .join('line')
@@ -318,15 +307,11 @@ export default function NetworkTopology() {
       .attr('opacity', 0.8)
       .attr('filter', 'url(#glow)');
 
-    attackLine.append('animate')
-      .attr('attributeName', 'stroke-dashoffset')
-      .attr('from', '0')
-      .attr('to', '20')
-      .attr('dur', '0.5s')
-      .attr('repeatCount', 'indefinite');
+    attackLine
+      .style('animation', 'attack-dash 0.5s linear infinite');
 
     // Nodes
-    const node = g.append('g')
+    const node = nodeGroup
       .selectAll('g')
       .data(nodes)
       .join('g')
@@ -355,23 +340,8 @@ export default function NetworkTopology() {
       .attr('fill', 'none')
       .attr('stroke', '#ef4444')
       .attr('stroke-width', 2)
-      .append('animate')
-      .attr('attributeName', 'r')
-      .attr('from', '25')
-      .attr('to', '40')
-      .attr('dur', '1.5s')
-      .attr('begin', '0s')
-      .attr('repeatCount', 'indefinite');
-
-    node.filter(d => d.status === 'compromised')
-      .select('circle')
-      .append('animate')
-      .attr('attributeName', 'opacity')
-      .attr('from', '1')
-      .attr('to', '0')
-      .attr('dur', '1.5s')
-      .attr('begin', '0s')
-      .attr('repeatCount', 'indefinite');
+      .style('transform-origin', '0 0')
+      .style('animation', 'pulse-ring 1.5s ease-out infinite');
 
     // Node background
     node.append('circle')
@@ -806,14 +776,5 @@ export default function NetworkTopology() {
         </AnimatePresence>
       </div>
     </div>
-  );
-}
-
-function X({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18"></line>
-      <line x1="6" y1="6" x2="18" y2="18"></line>
-    </svg>
   );
 }
