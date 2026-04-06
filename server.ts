@@ -1776,42 +1776,71 @@ async function startServer() {
           const cookies = headers['set-cookie'] || [];
           const cookieStr = (Array.isArray(cookies) ? cookies.join(' ') : String(cookies)).toLowerCase();
           
+          const addTech = (name: string, category: string, confidence: number, version?: string, security?: string[]) => {
+            tech.push({ name, category, confidence, version, security });
+          };
+
           // Web Servers
-          if (server.includes('apache')) tech.push({ name: 'Apache', category: 'Web Server', confidence: 95 });
-          if (server.includes('nginx')) tech.push({ name: 'Nginx', category: 'Web Server', confidence: 95 });
-          if (server.includes('iis') || server.includes('microsoft-iis')) tech.push({ name: 'IIS', category: 'Web Server', confidence: 95 });
-          if (server.includes('litespeed')) tech.push({ name: 'LiteSpeed', category: 'Web Server', confidence: 95 });
+          if (server.includes('apache')) {
+            const version = server.match(/apache\/([\d\.]+)/)?.[1];
+            addTech('Apache', 'Web Server', 95, version, ["Ensure version is up-to-date to avoid known CVEs.", "Disable server signature in production."]);
+          }
+          if (server.includes('nginx')) {
+            const version = server.match(/nginx\/([\d\.]+)/)?.[1];
+            addTech('Nginx', 'Web Server', 95, version, ["Check for misconfigured proxy settings.", "Hide version number in headers."]);
+          }
+          if (server.includes('iis') || server.includes('microsoft-iis')) {
+            const version = server.match(/iis\/([\d\.]+)/)?.[1];
+            addTech('IIS', 'Web Server', 95, version, ["Check for insecure authentication methods.", "Ensure latest security patches are applied."]);
+          }
+          if (server.includes('litespeed')) addTech('LiteSpeed', 'Web Server', 95);
           
           // CDNs / WAFs
-          if (server.includes('cloudflare')) tech.push({ name: 'Cloudflare', category: 'CDN/WAF', confidence: 100 });
-          if (server.includes('akamai')) tech.push({ name: 'Akamai', category: 'CDN', confidence: 95 });
-          if (server.includes('sucuri')) tech.push({ name: 'Sucuri', category: 'WAF', confidence: 95 });
-          if (headers['x-fastly-request-id']) tech.push({ name: 'Fastly', category: 'CDN', confidence: 100 });
+          if (server.includes('cloudflare')) addTech('Cloudflare', 'CDN/WAF', 100, undefined, ["WAF protection active.", "Check for 'Cloudflare bypass' vulnerabilities via origin IP leaks."]);
+          if (server.includes('akamai')) addTech('Akamai', 'CDN', 95);
+          if (server.includes('sucuri')) addTech('Sucuri', 'WAF', 95);
+          if (headers['x-fastly-request-id']) addTech('Fastly', 'CDN', 100);
           
           // Backend Languages & Frameworks
-          if (xPoweredBy.includes('php') || cookieStr.includes('phpsessid') || html.includes('.php?')) tech.push({ name: 'PHP', category: 'Backend Language', confidence: 90 });
-          if (xPoweredBy.includes('express')) tech.push({ name: 'Express.js', category: 'Backend Framework', confidence: 90 });
-          if (xPoweredBy.includes('asp.net') || cookieStr.includes('aspsessionid')) tech.push({ name: 'ASP.NET', category: 'Backend Framework', confidence: 90 });
-          if (cookieStr.includes('jsessionid')) tech.push({ name: 'Java', category: 'Backend Language', confidence: 90 });
+          if (xPoweredBy.includes('php') || cookieStr.includes('phpsessid') || html.includes('.php?')) {
+            const version = xPoweredBy.match(/php\/([\d\.]+)/)?.[1];
+            addTech('PHP', 'Backend Language', 90, version, ["Check for insecure file uploads.", "Ensure 'display_errors' is off in production."]);
+          }
+          if (xPoweredBy.includes('express')) addTech('Express.js', 'Backend Framework', 90, undefined, ["Ensure 'helmet' is used for security headers.", "Check for prototype pollution risks."]);
+          if (xPoweredBy.includes('asp.net') || cookieStr.includes('aspsessionid')) addTech('ASP.NET', 'Backend Framework', 90);
+          if (cookieStr.includes('jsessionid')) addTech('Java', 'Backend Language', 90);
           
           // Frontend Frameworks
-          if (xPoweredBy.includes('next.js') || html.includes('/_next/') || html.includes('__next')) tech.push({ name: 'Next.js', category: 'Frontend Framework', confidence: 90 });
-          if (xPoweredBy.includes('nuxt') || html.includes('/_nuxt/') || html.includes('__nuxt')) tech.push({ name: 'Nuxt.js', category: 'Frontend Framework', confidence: 90 });
-          if (html.includes('data-reactroot') || html.includes('react-dom')) tech.push({ name: 'React', category: 'Frontend Library', confidence: 80 });
-          if (html.includes('data-v-') || html.includes('vue.js')) tech.push({ name: 'Vue.js', category: 'Frontend Framework', confidence: 80 });
-          if (html.includes('ng-version') || html.includes('ng-app')) tech.push({ name: 'Angular', category: 'Frontend Framework', confidence: 80 });
-          if (html.includes('svelte-')) tech.push({ name: 'Svelte', category: 'Frontend Framework', confidence: 80 });
+          if (xPoweredBy.includes('next.js') || html.includes('/_next/') || html.includes('__next')) addTech('Next.js', 'Frontend Framework', 90, undefined, ["Check for SSR/SSG data leaks.", "Ensure API routes are properly authenticated."]);
+          if (xPoweredBy.includes('nuxt') || html.includes('/_nuxt/') || html.includes('__nuxt')) addTech('Nuxt.js', 'Frontend Framework', 90);
+          if (html.includes('data-reactroot') || html.includes('react-dom')) addTech('React', 'Frontend Library', 80);
+          if (html.includes('data-v-') || html.includes('vue.js')) addTech('Vue.js', 'Frontend Framework', 80);
+          if (html.includes('ng-version') || html.includes('ng-app')) {
+            const version = html.match(/ng-version="([\d\.]+)"/)?.[1];
+            addTech('Angular', 'Frontend Framework', 80, version);
+          }
+          if (html.includes('svelte-')) addTech('Svelte', 'Frontend Framework', 80);
           
           // CMS
-          if (html.includes('wp-content') || html.includes('wp-includes') || cookieStr.includes('wp-settings') || html.includes('generator" content="wordpress')) tech.push({ name: 'WordPress', category: 'CMS', confidence: 100 });
-          if (html.includes('shopify.com') || html.includes('cdn.shopify.com')) tech.push({ name: 'Shopify', category: 'E-commerce', confidence: 100 });
-          if (html.includes('magento')) tech.push({ name: 'Magento', category: 'E-commerce', confidence: 90 });
+          if (html.includes('wp-content') || html.includes('wp-includes') || cookieStr.includes('wp-settings') || html.includes('generator" content="wordpress')) {
+            const version = html.match(/generator" content="wordpress ([\d\.]+)"/)?.[1];
+            addTech('WordPress', 'CMS', 100, version, ["Check for vulnerable plugins/themes.", "Ensure 'wp-admin' is protected.", "Disable XML-RPC if not needed."]);
+          }
+          if (html.includes('shopify.com') || html.includes('cdn.shopify.com')) addTech('Shopify', 'E-commerce', 100);
+          if (html.includes('magento')) addTech('Magento', 'E-commerce', 90);
           
           // Analytics & Tracking
-          if (html.includes('google-analytics.com') || html.includes('gtag')) tech.push({ name: 'Google Analytics', category: 'Analytics', confidence: 100 });
-          if (html.includes('googletagmanager.com')) tech.push({ name: 'Google Tag Manager', category: 'Analytics', confidence: 100 });
-          if (html.includes('connect.facebook.net') || html.includes('fbq(')) tech.push({ name: 'Facebook Pixel', category: 'Analytics', confidence: 100 });
+          if (html.includes('google-analytics.com') || html.includes('gtag')) addTech('Google Analytics', 'Analytics', 100);
+          if (html.includes('googletagmanager.com')) addTech('Google Tag Manager', 'Analytics', 100);
+          if (html.includes('connect.facebook.net') || html.includes('fbq(')) addTech('Facebook Pixel', 'Analytics', 100);
           
+          // Local Development Tools (for localhost scans)
+          if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            if (html.includes('/@vite/client') || html.includes('__vite_is_modern')) addTech('Vite', 'Build Tool', 100, undefined, ["Development server detected. Do not expose to public network."]);
+            if (html.includes('webpack-dev-server')) addTech('Webpack', 'Build Tool', 100);
+            if (html.includes('hmr') || html.includes('hot module replacement')) addTech('HMR', 'Dev Feature', 90);
+          }
+
           if (tech.length === 0) tech.push({ name: 'Unknown Stack', category: 'General', confidence: 50 });
           
           // Remove duplicates
