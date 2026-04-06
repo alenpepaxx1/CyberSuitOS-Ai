@@ -597,42 +597,6 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           </div>
           <div className="flex-1 min-h-[450px] relative bg-black/20">
             <ThreatMap onAction={onNavigate} initialNodes={mapNodes} initialLines={attackLines} />
-            
-            {/* Map HUD Overlay */}
-            <div className="absolute top-4 left-4 pointer-events-none flex flex-col gap-2 z-10">
-              <div className="bg-black/60 backdrop-blur-md border border-white/10 p-2 rounded-lg flex flex-col gap-1">
-                <div className="text-[8px] font-mono text-gray-500 uppercase">Topology Density</div>
-                <div className="flex gap-0.5">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <motion.div 
-                      key={i} 
-                      className="w-1.5 h-3 bg-cyber-green/40 rounded-sm"
-                      animate={{ opacity: [0.2, 1, 0.2] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: i * 0.1 }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="absolute bottom-4 right-4 pointer-events-none flex flex-col gap-2 z-10">
-              <div className="bg-black/80 backdrop-blur-md border border-white/10 p-3 rounded-lg flex items-center gap-4">
-                <div className="flex flex-col">
-                  <span className="text-[8px] font-mono text-gray-500 uppercase">Global Latency</span>
-                  <span className="text-xs font-mono text-cyber-green font-bold">42ms</span>
-                </div>
-                <div className="w-px h-6 bg-white/10" />
-                <div className="flex flex-col">
-                  <span className="text-[8px] font-mono text-gray-500 uppercase">Traffic Flow</span>
-                  <span className="text-xs font-mono text-blue-400 font-bold">1.2 GB/s</span>
-                </div>
-                <div className="w-px h-6 bg-white/10" />
-                <div className="flex flex-col">
-                  <span className="text-[8px] font-mono text-gray-500 uppercase">Active Nodes</span>
-                  <span className="text-xs font-mono text-white font-bold">{mapNodes?.length || 0}</span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
