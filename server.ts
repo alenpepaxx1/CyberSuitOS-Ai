@@ -1189,41 +1189,138 @@ async function startServer() {
           });
           
           const headers = response.headers;
-          const analysis: any = {};
+          const analysis: any = {
+            security: {},
+            disclosure: {},
+            cookies: [],
+            score: 0,
+            totalChecks: 0,
+            passedChecks: 0
+          };
+
           const securityHeaders = {
-            'Content-Security-Policy': { rec: 'Implement a strong CSP', severity: 'high' },
-            'Strict-Transport-Security': { rec: 'Enable HSTS', severity: 'medium' },
-            'X-Frame-Options': { rec: 'Set to DENY or SAMEORIGIN', severity: 'medium' },
-            'X-Content-Type-Options': { rec: 'Set to nosniff', severity: 'low' },
-            'Referrer-Policy': { rec: 'Set to strict-origin-when-cross-origin', severity: 'low' },
-            'Permissions-Policy': { rec: 'Define browser feature permissions', severity: 'low' },
-            'X-XSS-Protection': { rec: 'Deprecated but still useful for older browsers', severity: 'info' }
+            'Content-Security-Policy': { 
+              rec: 'Implement a strong CSP to prevent XSS and data injection.', 
+              severity: 'high',
+              check: (val: string) => {
+                if (!val) return { status: 'missing', score: 0, detail: '' };
+                if (val.includes('unsafe-inline') || val.includes('unsafe-eval')) {
+                  return { status: 'warning', score: 5, detail: 'CSP present but allows unsafe-inline or unsafe-eval.' };
+                }
+                return { status: 'secure', score: 10, detail: '' };
+              }
+            },
+            'Strict-Transport-Security': { 
+              rec: 'Enable HSTS to force HTTPS connections.', 
+              severity: 'medium',
+              check: (val: string) => {
+                if (!val) return { status: 'missing', score: 0, detail: '' };
+                if (!val.includes('max-age')) return { status: 'warning', score: 5, detail: 'HSTS present but missing max-age.' };
+                return { status: 'secure', score: 10, detail: '' };
+              }
+            },
+            'X-Frame-Options': { 
+              rec: 'Set to DENY or SAMEORIGIN to prevent clickjacking.', 
+              severity: 'medium',
+              check: (val: string) => {
+                if (!val) return { status: 'missing', score: 0, detail: '' };
+                const v = val.toUpperCase();
+                if (v === 'DENY' || v === 'SAMEORIGIN') return { status: 'secure', score: 10, detail: '' };
+                return { status: 'warning', score: 5, detail: 'X-Frame-Options set to insecure value.' };
+              }
+            },
+            'X-Content-Type-Options': { 
+              rec: 'Set to nosniff to prevent MIME sniffing.', 
+              severity: 'low',
+              check: (val: string) => {
+                if (!val) return { status: 'missing', score: 0, detail: '' };
+                if (val.toLowerCase() === 'nosniff') return { status: 'secure', score: 10, detail: '' };
+                return { status: 'warning', score: 5, detail: 'X-Content-Type-Options set to insecure value.' };
+              }
+            },
+            'Referrer-Policy': { 
+              rec: 'Set to strict-origin-when-cross-origin to protect user privacy.', 
+              severity: 'low',
+              check: (val: string) => {
+                if (!val) return { status: 'missing', score: 0, detail: '' };
+                const secureValues = ['no-referrer', 'no-referrer-when-downgrade', 'origin', 'origin-when-cross-origin', 'same-origin', 'strict-origin', 'strict-origin-when-cross-origin'];
+                if (secureValues.includes(val.toLowerCase())) return { status: 'secure', score: 10, detail: '' };
+                return { status: 'warning', score: 5, detail: 'Referrer-Policy set to potentially insecure value.' };
+              }
+            },
+            'Permissions-Policy': { 
+              rec: 'Define browser feature permissions to reduce attack surface.', 
+              severity: 'low',
+              check: (val: string) => {
+                if (!val) return { status: 'missing', score: 0, detail: '' };
+                return { status: 'secure', score: 10, detail: '' };
+              }
+            },
+            'X-XSS-Protection': { 
+              rec: 'Deprecated but still useful for older browsers. Set to 1; mode=block.', 
+              severity: 'info',
+              check: (val: string) => {
+                if (!val) return { status: 'missing', score: 0, detail: '' };
+                if (val.includes('1; mode=block')) return { status: 'secure', score: 10, detail: '' };
+                return { status: 'warning', score: 5, detail: 'X-XSS-Protection present but not in block mode.' };
+              }
+            }
           };
 
           Object.entries(securityHeaders).forEach(([h, config]) => {
             const val = headers[h.toLowerCase()];
-            analysis[h] = {
+            const checkResult = config.check(val);
+            analysis.totalChecks++;
+            if (checkResult.status === 'secure') analysis.passedChecks++;
+            analysis.score += checkResult.score;
+
+            analysis.security[h] = {
               value: val || 'Missing',
-              status: val ? 'secure' : 'missing',
-              severity: val ? 'none' : config.severity,
-              recommendation: val ? 'None' : config.rec
+              status: checkResult.status,
+              severity: checkResult.status === 'secure' ? 'none' : (checkResult.status === 'warning' ? 'low' : config.severity),
+              recommendation: checkResult.status === 'secure' ? 'None' : config.rec,
+              detail: checkResult.detail || ''
             };
           });
           
-          // Check for sensitive headers
-          const sensitiveHeaders = ['server', 'x-powered-by', 'x-aspnet-version', 'via'];
+          // Check for sensitive headers (Information Disclosure)
+          const sensitiveHeaders = ['server', 'x-powered-by', 'x-aspnet-version', 'via', 'x-cache', 'x-generator'];
           sensitiveHeaders.forEach(h => {
-            const val = headers[h];
+            const val = headers[h.toLowerCase()];
             if (val) {
-              analysis[h] = {
+              analysis.disclosure[h] = {
                 value: val,
                 status: 'vulnerable',
                 severity: 'low',
-                recommendation: 'Information disclosure: Hide this header to reduce attack surface.'
+                recommendation: `Information disclosure: Hide the '${h}' header to reduce attack surface.`
               };
             }
           });
 
+          // Cookie analysis
+          const setCookies = headers['set-cookie'];
+          if (setCookies) {
+            setCookies.forEach(cookie => {
+              const parts = cookie.split(';').map(p => p.trim());
+              const name = parts[0].split('=')[0];
+              const isSecure = parts.some(p => p.toLowerCase() === 'secure');
+              const isHttpOnly = parts.some(p => p.toLowerCase() === 'httponly');
+              const sameSite = parts.find(p => p.toLowerCase().startsWith('samesite='))?.split('=')[1] || 'None';
+
+              analysis.cookies.push({
+                name,
+                secure: isSecure,
+                httpOnly: isHttpOnly,
+                sameSite,
+                status: (isSecure && isHttpOnly) ? 'secure' : 'warning',
+                recommendation: `${!isSecure ? 'Missing Secure flag. ' : ''}${!isHttpOnly ? 'Missing HttpOnly flag.' : ''}`
+              });
+            });
+          }
+
+          // Calculate final percentage score
+          analysis.overallScore = Math.round((analysis.score / (analysis.totalChecks * 10)) * 100);
+          
           result = analysis;
         } catch (e: any) {
           return res.status(500).json({ error: e.message });
