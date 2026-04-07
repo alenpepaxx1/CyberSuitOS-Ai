@@ -1,877 +1,891 @@
 /* COPYRIGHT ALEN PEPA */
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import * as d3 from 'd3';
 import { 
-  Shield, AlertTriangle, Activity, Globe, Zap, Lock, 
-  Terminal, Server, Cpu, Database, Eye, RefreshCw,
-  TrendingUp, TrendingDown, Target, Radio, ShieldAlert, ShieldCheck, MessageSquare, ExternalLink, Clock, Loader2, Terminal as TerminalIcon,
-  Mail, Hash, Search, Settings, Bot, User, BarChart3, PieChart as PieChartIcon, Map as MapIcon, Layers, Wifi, Fingerprint, Bug
+  Shield, Server, Laptop, Router, AlertTriangle, 
+  Info, Activity, Zap, Globe, Database, Cpu, 
+  Lock, Unlock, Radio, Wifi, Search, RefreshCw,
+  Maximize2, Minimize2, ZoomIn, ZoomOut, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie,
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
-} from 'recharts';
 import { cn } from '@/src/lib/utils';
-import { logToTerminal } from './Terminal';
-import ThreatMap from './ThreatMap';
 
-import { useSystem } from '../contexts/SystemContext';
-
-interface ThreatNews {
-  title: string;
-  summary: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  timestamp: string;
-  source: string;
-  link: string;
-}
-
-interface LogEntry {
+interface Node extends d3.SimulationNodeDatum {
   id: string;
-  time: string;
-  event: string;
-  source: string;
-  destination?: string;
-  port?: number;
-  protocol?: string;
-  status: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  confidence?: number;
-  mitreTactic?: string;
-  mitreTechnique?: string;
-  geo?: string;
-  payloadSnippet?: string;
-  details?: string;
+  type: 'server' | 'laptop' | 'router' | 'firewall' | 'database' | 'cloud' | 'iot';
+  status: 'secure' | 'vulnerable' | 'compromised';
+  label: string;
+  ip?: string;
+  os?: string;
+  uptime?: string;
+  traffic?: number;
+  threatLevel?: number;
 }
 
-const ATTACK_TRENDS = [
-  { time: '00:00', attacks: 45, blocked: 42 },
-  { time: '04:00', attacks: 32, blocked: 31 },
-  { time: '08:00', attacks: 68, blocked: 65 },
-  { time: '12:00', attacks: 124, blocked: 120 },
-  { time: '16:00', attacks: 85, blocked: 82 },
-  { time: '20:00', attacks: 156, blocked: 150 },
-  { time: '23:59', attacks: 92, blocked: 89 },
-];
-
-const GEOGRAPHIC_DATA = [
-  { name: 'North America', value: 45, color: '#3b82f6' },
-  { name: 'Europe', value: 30, color: '#10b981' },
-  { name: 'Asia', value: 15, color: '#f59e0b' },
-  { name: 'Other', value: 10, color: '#ef4444' },
-];
-
-const SYSTEM_INTEGRITY = [
-  { subject: 'Firewall', A: 120, fullMark: 150 },
-  { subject: 'VPN', A: 98, fullMark: 150 },
-  { subject: 'AI Core', A: 86, fullMark: 150 },
-  { subject: 'Encryption', A: 99, fullMark: 150 },
-  { subject: 'Auth', A: 85, fullMark: 150 },
-  { subject: 'Network', A: 65, fullMark: 150 },
-];
-
-interface DashboardProps {
-  onNavigate?: (toolId: string, target?: string) => void;
+interface Link extends d3.SimulationLinkDatum<Node> {
+  source: string | Node;
+  target: string | Node;
+  value?: number;
+  active?: boolean;
 }
 
-export default function Dashboard({ onNavigate }: DashboardProps) {
-  const { stats, firewallEnabled, vpnEnabled, userName, clearanceLevel } = useSystem();
-  const [attackTrends, setAttackTrends] = useState(ATTACK_TRENDS);
-  const [geoData, setGeoData] = useState(GEOGRAPHIC_DATA);
-  const [mapNodes, setMapNodes] = useState<any[] | undefined>(undefined);
-  const [attackLines, setAttackLines] = useState<any[]>([]);
-  const [threatNews, setThreatNews] = useState<ThreatNews[]>([]);
-  const [liveFeed, setLiveFeed] = useState<ThreatNews[]>([]);
-  const [liveActiveThreats, setLiveActiveThreats] = useState<number>(1242);
-  const [liveBlockedAttacks, setLiveBlockedAttacks] = useState<number>(45200);
-  const [tickerIndex, setTickerIndex] = useState(0);
+export default function NetworkTopology() {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [links, setLinks] = useState<Link[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isScanning, setIsScanning] = useState(false);
+  const [activeAttacks, setActiveAttacks] = useState<{from: string, to: string}[]>([]);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const [stats, setStats] = useState({
+    totalNodes: 0,
+    compromised: 0,
+    vulnerable: 0,
+    traffic: '0 KB/s'
+  });
 
-  const TICKER_MESSAGES = liveFeed.length > 0 
-    ? liveFeed.map(n => `${n.severity.toUpperCase()}: ${n.title} [Source: ${n.source}]`)
-    : threatNews.length > 0 
-      ? threatNews.map(n => `${n.severity.toUpperCase()}: ${n.title} [Source: ${n.source}]`)
-      : [
-          "CRITICAL: Zero-day exploit detected in major CDN provider",
-          "ALERT: Massive DDoS attack targeting financial infrastructure in East Asia",
-          "INFO: New ransomware strain 'CyberLock' identified by AI core",
-          "WARNING: Unusual traffic spike detected from unknown ASN in Eastern Europe",
-          "NOTICE: System firewall successfully blocked 12,432 intrusion attempts in the last hour",
-          "UPDATE: Global threat level elevated to ORANGE due to increased C2 activity"
-        ];
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [systemLoad, setSystemLoad] = useState(42);
-  const [logs, setLogs] = useState<LogEntry[]>([
-    { id: '1', time: new Date().toLocaleTimeString(), event: 'SSH Brute Force Attempt', source: '192.168.1.45', status: 'Blocked', severity: 'high' },
-    { id: '2', time: new Date().toLocaleTimeString(), event: 'SQL Injection Detected', source: '45.12.33.102', status: 'Mitigated', severity: 'critical' },
-    { id: '3', time: new Date().toLocaleTimeString(), event: 'Unauthorized API Access', source: '10.0.0.12', status: 'Logged', severity: 'medium' },
-  ]);
-  const [isPaused, setIsPaused] = useState(false);
-  const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
-  const [filter, setFilter] = useState<string>('all');
-
-  const fetchLiveStats = async () => {
+  const fetchNetworkData = async () => {
     try {
-      const res = await fetch('/api/live-stats');
-      if (res.ok) {
-        const data = await res.json();
-        setLiveActiveThreats(data.activeThreats || 0);
-        setLiveBlockedAttacks(data.blockedAttacks || 0);
-        if (data.liveFeed && data.liveFeed.length > 0) {
-          setLiveFeed(data.liveFeed);
-        }
-      }
+      const res = await fetch('/api/network');
+      const data = await res.json();
+      
+      setNodes(data.nodes);
+      setLinks(data.links);
+      
+      setStats({
+        totalNodes: data.nodes.length,
+        compromised: data.nodes.filter((n: any) => n.status === 'compromised').length,
+        vulnerable: data.nodes.filter((n: any) => n.status === 'vulnerable').length,
+        traffic: `${(Math.random() * 500 + 100).toFixed(1)} KB/s`
+      });
+
+      setIsLoading(false);
     } catch (e) {
-      console.error("Failed to fetch live stats:", e);
-    }
-  };
-
-  const fetchRealLogs = async () => {
-    if (isPaused) return;
-    try {
-      const res = await fetch('/api/logs');
-      const newLogs = await res.json();
-      setLogs(prev => [...newLogs, ...prev].slice(0, 50));
-    } catch (e) {
-      console.error("Failed to fetch real logs:", e);
-    }
-  };
-
-  const fetchThreatIntelligence = async (isInitial = false) => {
-    if (isInitial) setIsLoading(true);
-    try {
-      const response = await fetch('/api/threat-intel');
-      if (response.ok) {
-        const data = await response.json();
-        setThreatNews(data.news || []);
-        if (data.trends?.length > 0) setAttackTrends(data.trends);
-        if (data.geo?.length > 0) setGeoData(data.geo);
-        setMapNodes(data.mapNodes || []);
-        setAttackLines(data.attackLines || []);
-        setLastUpdated(new Date());
-      } else {
-        throw new Error('Backend threat intel failed');
-      }
-    } catch (error) {
-      console.error("Failed to fetch threat intelligence:", error);
-      // Ensure we have something to show even on error
-      setMapNodes([]);
-      setAttackLines([]);
-      const fallbackNews: ThreatNews[] = [
-        {
-          title: 'New Zero-Day Vulnerability in Popular Web Browser',
-          summary: 'A critical remote code execution vulnerability has been discovered in Chromium-based browsers. Users are advised to update immediately.',
-          severity: 'critical',
-          timestamp: '2 hours ago',
-          source: 'CyberSecurity Hub',
-          link: '#'
-        },
-        {
-          title: 'Major Ransomware Attack on Healthcare Provider',
-          summary: 'A large healthcare network has been hit by a sophisticated ransomware attack, disrupting patient services across multiple states.',
-          severity: 'high',
-          timestamp: '5 hours ago',
-          source: 'Threat Monitor',
-          link: '#'
-        }
-      ];
-      setThreatNews(fallbackNews);
-    } finally {
+      console.error("Failed to fetch network data:", e);
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchThreatIntelligence(true);
-    const interval = setInterval(() => fetchThreatIntelligence(false), 60000); // 1 min for real-time feel
-    return () => clearInterval(interval);
-  }, []); // Run once on mount
-
-  useEffect(() => {
-    fetchLiveStats();
-    const liveStatsInterval = setInterval(fetchLiveStats, 5000); // Every 5 seconds
-    return () => clearInterval(liveStatsInterval);
-  }, []);
-
-  useEffect(() => {
-    const loadInterval = setInterval(() => {
-      setSystemLoad(prev => Math.max(10, Math.min(95, prev + (Math.random() * 10 - 5))));
-    }, 5000);
-    return () => clearInterval(loadInterval);
-  }, []);
-
-  useEffect(() => {
-    const logInterval = setInterval(fetchRealLogs, 4000);
-    return () => clearInterval(logInterval);
-  }, [isPaused]); // Only re-run if isPaused changes
-
-  useEffect(() => {
-    const tickerInterval = setInterval(() => {
-      setTickerIndex((prev) => {
-        const messages = liveFeed.length > 0 
-          ? liveFeed.map(n => `${n.severity.toUpperCase()}: ${n.title} [Source: ${n.source}]`)
-          : threatNews.length > 0 
-            ? threatNews.map(n => `${n.severity.toUpperCase()}: ${n.title} [Source: ${n.source}]`)
-            : [
-                "CRITICAL: Zero-day exploit detected in major CDN provider",
-                "ALERT: Massive DDoS attack targeting financial infrastructure in East Asia",
-                "INFO: New ransomware strain 'CyberLock' identified by AI core",
-                "WARNING: Unusual traffic spike detected from unknown ASN in Eastern Europe",
-                "NOTICE: System firewall successfully blocked 12,432 intrusion attempts in the last hour",
-                "UPDATE: Global threat level elevated to ORANGE due to increased C2 activity"
-              ];
-        return (prev + 1) % messages.length;
+  const handleNodeAction = async (action: 'isolate' | 'remediate' | 'scan') => {
+    if (!selectedNode) return;
+    
+    try {
+      const res = await fetch('/api/network/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeId: selectedNode.id, action })
       });
-    }, 5000);
-    return () => clearInterval(tickerInterval);
-  }, [liveFeed, threatNews]); // Only re-run if liveFeed or threatNews changes
+      const data = await res.json();
+      
+      if (data.success) {
+        // Update local state for immediate feedback
+        if (action === 'isolate') {
+          setLinks(prev => prev.filter(l => 
+            (typeof l.source === 'string' ? l.source !== selectedNode.id : l.source.id !== selectedNode.id) && 
+            (typeof l.target === 'string' ? l.target !== selectedNode.id : l.target.id !== selectedNode.id)
+          ));
+        }
+        
+        fetchNetworkData();
+        
+        // Log to terminal
+        const event = new CustomEvent('terminal-log', { 
+          detail: { 
+            message: `[NET_TOPOLOGY] ${data.message}`, 
+            level: action === 'scan' ? 'info' : 'success' 
+          } 
+        });
+        window.dispatchEvent(event);
+      }
+    } catch (e) {
+      console.error("Action failed:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchNetworkData();
+    const interval = setInterval(fetchNetworkData, 15000);
+    
+    // Attack simulation
+    const attackInterval = setInterval(() => {
+      const compromised = nodes.filter(n => n.status === 'compromised');
+      if (compromised.length > 0) {
+        const attacker = compromised[Math.floor(Math.random() * compromised.length)];
+        const neighbors = links
+          .filter(l => (typeof l.source === 'string' ? l.source === attacker.id : l.source.id === attacker.id) || 
+                       (typeof l.target === 'string' ? l.target === attacker.id : l.target.id === attacker.id))
+          .map(l => {
+            const sId = typeof l.source === 'string' ? l.source : l.source.id;
+            const tId = typeof l.target === 'string' ? l.target : l.target.id;
+            return sId === attacker.id ? tId : sId;
+          });
+          
+        if (neighbors.length > 0) {
+          const targetId = neighbors[Math.floor(Math.random() * neighbors.length)];
+          setActiveAttacks(prev => [...prev, { from: attacker.id, to: targetId as string }]);
+          setTimeout(() => {
+            setActiveAttacks(prev => prev.filter(a => a.from !== attacker.id || a.to !== targetId));
+          }, 3000);
+        }
+      }
+    }, 10000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(attackInterval);
+    };
+  }, [nodes, links]);
+
+  const handleScan = () => {
+    setIsScanning(true);
+    // Simulate a deep scan that might find new vulnerabilities
+    setTimeout(() => {
+      setIsScanning(false);
+      fetchNetworkData();
+      const event = new CustomEvent('terminal-log', { 
+        detail: { message: "[NET_TOPOLOGY] Deep network scan complete. Heuristics updated.", level: 'success' } 
+      });
+      window.dispatchEvent(event);
+    }, 3000);
+  };
+
+  useEffect(() => {
+    if (!svgRef.current || nodes.length === 0) return;
+
+    const width = containerRef.current?.clientWidth || 800;
+    const height = containerRef.current?.clientHeight || 600;
+
+    const svg = d3.select(svgRef.current)
+      .attr('width', width)
+      .attr('height', height);
+
+    // Initialize persistent groups if they don't exist
+    if (svg.select('defs').empty()) {
+      const defs = svg.append('defs');
+      
+      // Glow filter
+      const filter = defs.append('filter')
+        .attr('id', 'glow')
+        .attr('x', '-50%')
+        .attr('y', '-50%')
+        .attr('width', '200%')
+        .attr('height', '200%');
+
+      filter.append('feGaussianBlur')
+        .attr('stdDeviation', '3')
+        .attr('result', 'blur');
+      filter.append('feComposite')
+        .attr('in', 'SourceGraphic')
+        .attr('in2', 'blur')
+        .attr('operator', 'over');
+
+      // Radar Gradient
+      const radarGradient = defs.append('linearGradient')
+        .attr('id', 'radar-gradient')
+        .attr('x1', '0%')
+        .attr('y1', '0%')
+        .attr('x2', '100%')
+        .attr('y2', '0%');
+      radarGradient.append('stop').attr('offset', '0%').attr('stop-color', '#06b6d4').attr('stop-opacity', 0.8);
+      radarGradient.append('stop').attr('offset', '100%').attr('stop-color', '#06b6d4').attr('stop-opacity', 0);
+    }
+
+    let mainG = svg.select<SVGGElement>('g.main-group');
+    if (mainG.empty()) {
+      mainG = svg.append('g').attr('class', 'main-group');
+      
+      // Data Stream Layer (Background)
+      const streamGroup = mainG.append('g').attr('class', 'data-streams');
+      for (let i = 0; i < 15; i++) {
+        streamGroup.append('line')
+          .attr('x1', -1000)
+          .attr('y1', -1000 + i * 150)
+          .attr('x2', 1000)
+          .attr('y2', -1000 + i * 150)
+          .attr('stroke', '#06b6d4')
+          .attr('stroke-width', 0.5)
+          .attr('opacity', 0.05)
+          .attr('stroke-dasharray', '10,20')
+          .style('animation', `data-flow ${30 + Math.random() * 30}s linear infinite`);
+      }
+
+      // Radar Background (Static)
+      const radarGroup = mainG.append('g').attr('class', 'radar-background');
+      for (let i = 1; i <= 4; i++) {
+        radarGroup.append('circle')
+          .attr('cx', 0)
+          .attr('cy', 0)
+          .attr('r', i * 150)
+          .attr('fill', 'none')
+          .attr('stroke', '#06b6d4')
+          .attr('stroke-width', 0.5)
+          .attr('opacity', 0.2)
+          .attr('stroke-dasharray', i % 2 === 0 ? '4,4' : 'none');
+      }
+      radarGroup.append('line').attr('x1', -600).attr('y1', 0).attr('x2', 600).attr('y2', 0).attr('stroke', '#06b6d4').attr('stroke-width', 0.5).attr('opacity', 0.2);
+      radarGroup.append('line').attr('x1', 0).attr('y1', -600).attr('x2', 0).attr('y2', 600).attr('stroke', '#06b6d4').attr('stroke-width', 0.5).attr('opacity', 0.2);
+
+      // Radar sweep with CSS animation
+      const sweep = radarGroup.append('path')
+        .attr('d', 'M0,0 L0,-600 A600,600 0 0,1 155,-579 Z')
+        .attr('fill', 'url(#radar-gradient)')
+        .attr('opacity', 0.4)
+        .style('transform-origin', '0 0')
+        .style('animation', 'radar-rotate 8s linear infinite');
+
+      // Add CSS for radar rotation if not present
+      if (document.getElementById('radar-style') === null) {
+        const style = document.createElement('style');
+        style.id = 'radar-style';
+        style.innerHTML = `
+          @keyframes radar-rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes attack-dash {
+            to { stroke-dashoffset: -20; }
+          }
+          @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
+          }
+          @keyframes data-flow {
+            from { stroke-dashoffset: 100; }
+            to { stroke-dashoffset: 0; }
+          }
+          @keyframes scan-line {
+            0% { transform: translateY(-100%); opacity: 0; }
+            50% { opacity: 0.5; }
+            100% { transform: translateY(1000%); opacity: 0; }
+          }
+          @keyframes glitch-flicker {
+            0% { opacity: 1; }
+            50% { opacity: 0.9; }
+            100% { opacity: 1; }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    }
+
+    // Dynamic layers
+    mainG.selectAll('.dynamic-layer').remove();
+    const linkGroup = mainG.append('g').attr('class', 'dynamic-layer links');
+    const packetGroup = mainG.append('g').attr('class', 'dynamic-layer packets');
+    const attackGroup = mainG.append('g').attr('class', 'dynamic-layer attacks');
+    const nodeGroup = mainG.append('g').attr('class', 'dynamic-layer nodes');
+
+    // Zoom behavior
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 4])
+      .on('zoom', (event) => {
+        mainG.attr('transform', event.transform);
+        setZoomLevel(event.transform.k);
+      });
+    zoomRef.current = zoom;
+    svg.call(zoom);
+
+    const simulation = d3.forceSimulation<Node>(nodes)
+      .alphaDecay(0.05)
+      .force('link', d3.forceLink<Node, Link>(links).id(d => d.id).distance(100))
+      .force('charge', d3.forceManyBody().strength(-600))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('x', d3.forceX(width / 2).strength(0.2))
+      .force('y', d3.forceY((d: any) => {
+        const id = d.id;
+        if (id === 'internet') return height * 0.15;
+        if (id === 'ext-fw') return height * 0.3;
+        if (['dmz-switch', 'web-01', 'web-02', 'vpn-gw'].includes(id)) return height * 0.45;
+        if (id === 'int-fw') return height * 0.6;
+        if (id === 'core-switch') return height * 0.75;
+        return height * 0.9;
+      }).strength(2.5))
+      .force('collision', d3.forceCollide().radius(70));
+
+    // Layer Labels
+    const layers = [
+      { y: height * 0.15, label: 'External / WAN' },
+      { y: height * 0.3, label: 'Edge Security' },
+      { y: height * 0.45, label: 'DMZ / Public Services' },
+      { y: height * 0.6, label: 'Internal Security' },
+      { y: height * 0.75, label: 'Core Infrastructure' },
+      { y: height * 0.9, label: 'Internal Assets' }
+    ];
+
+    mainG.selectAll('.layer-indicator').remove();
+    const layerGroup = mainG.append('g').attr('class', 'layer-indicator').lower();
+    
+    layers.forEach(layer => {
+      layerGroup.append('line')
+        .attr('x1', -width)
+        .attr('y1', layer.y)
+        .attr('x2', width * 2)
+        .attr('y2', layer.y)
+        .attr('stroke', '#06b6d4')
+        .attr('stroke-width', 0.5)
+        .attr('stroke-dasharray', '5,10')
+        .attr('opacity', 0.1);
+
+      layerGroup.append('text')
+        .attr('x', 20)
+        .attr('y', layer.y - 10)
+        .attr('fill', '#06b6d4')
+        .attr('font-size', '8px')
+        .attr('font-family', 'monospace')
+        .attr('opacity', 0.3)
+        .attr('text-anchor', 'start')
+        .text(layer.label.toUpperCase());
+    });
+
+    // Links
+    const link = linkGroup
+      .selectAll('path')
+      .data(links)
+      .join('path')
+      .attr('id', (d, i) => `link-${i}`)
+      .attr('fill', 'none')
+      .attr('stroke', d => (d.source as Node).status === 'compromised' || (d.target as Node).status === 'compromised' ? '#ef4444' : '#333')
+      .attr('stroke-width', d => (d.source as Node).status === 'compromised' || (d.target as Node).status === 'compromised' ? 2 : 1.5)
+      .attr('stroke-dasharray', d => (d.source as Node).status === 'compromised' || (d.target as Node).status === 'compromised' ? '4,4' : 'none')
+      .attr('opacity', 0.6);
+
+    // Packet Animation
+    const animatePackets = () => {
+      packetGroup.selectAll('g').remove();
+      links.forEach((l, i) => {
+        const source = l.source as Node;
+        const target = l.target as Node;
+        if (Math.random() > 0.1) {
+          const isCompromised = source.status === 'compromised' || target.status === 'compromised';
+          const pG = packetGroup.append('g');
+          // Slower, more rhythmic packets
+          const duration = 4 + Math.random() * 4;
+          pG.append('circle').attr('r', isCompromised ? 3 : 2).attr('fill', isCompromised ? '#ef4444' : '#06b6d4').attr('filter', 'url(#glow)')
+            .append('animateMotion').attr('dur', `${duration}s`).attr('repeatCount', 'indefinite').append('mpath').attr('xlink:href', `#link-${i}`);
+          pG.append('circle').attr('r', isCompromised ? 2 : 1.5).attr('fill', isCompromised ? '#ef4444' : '#06b6d4').attr('opacity', 0.5)
+            .append('animateMotion').attr('dur', `${duration}s`).attr('begin', '0.2s').attr('repeatCount', 'indefinite').append('mpath').attr('xlink:href', `#link-${i}`);
+        }
+      });
+    };
+    animatePackets();
+
+    // Attack Lines
+    const attackLine = attackGroup
+      .selectAll('line')
+      .data(activeAttacks)
+      .join('line')
+      .attr('stroke', '#ef4444')
+      .attr('stroke-width', 3)
+      .attr('stroke-dasharray', '5,5')
+      .attr('opacity', 0.8)
+      .attr('filter', 'url(#glow)');
+
+    attackLine
+      .style('animation', 'attack-dash 2s linear infinite');
+
+    // Nodes
+    const node = nodeGroup
+      .selectAll('g')
+      .data(nodes)
+      .join('g')
+      .attr('cursor', 'pointer')
+      .call(d3.drag<SVGGElement, Node>()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended))
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        setSelectedNode(d);
+      })
+      .on('mouseover', function(event, d) {
+        d3.select(this).select('.node-bg').attr('fill', '#1a1a1a').attr('stroke-width', 4);
+        d3.select(this).select('.node-label').attr('fill', '#fff');
+        
+        // Add temporary scanning ring on hover
+        d3.select(this).append('circle')
+          .attr('class', 'hover-ring')
+          .attr('r', 30)
+          .attr('fill', 'none')
+          .attr('stroke', '#06b6d4')
+          .attr('stroke-width', 1)
+          .attr('opacity', 0)
+          .transition()
+          .duration(300)
+          .attr('opacity', 0.5)
+          .attr('r', 35);
+      })
+      .on('mouseout', function(event, d) {
+        d3.select(this).select('.node-bg').attr('fill', '#0a0a0a').attr('stroke-width', 2);
+        d3.select(this).select('.node-label').attr('fill', '#888');
+        d3.select(this).selectAll('.hover-ring').remove();
+      });
+
+    // Node outer ring (pulse for compromised)
+    node.filter(d => d.status === 'compromised')
+      .append('circle')
+      .attr('r', 25)
+      .attr('fill', 'none')
+      .attr('stroke', '#ef4444')
+      .attr('stroke-width', 2)
+      .style('transform-origin', '0 0')
+      .style('animation', 'pulse-ring 3s ease-out infinite');
+
+    // Glitch effect for compromised nodes
+    node.filter(d => d.status === 'compromised')
+      .style('animation', 'glitch-flicker 3s ease-in-out infinite');
+
+    // Node background
+    node.append('circle')
+      .attr('class', 'node-bg')
+      .attr('r', 24)
+      .attr('fill', '#0a0a0a')
+      .attr('stroke', d => {
+        if (d.status === 'secure') return '#10b981';
+        if (d.status === 'vulnerable') return '#f59e0b';
+        return '#ef4444';
+      })
+      .attr('stroke-width', 2)
+      .attr('filter', 'url(#glow)')
+      .style('transition', 'all 0.3s ease');
+
+    // Node Icons using foreignObject for React/Lucide integration
+    node.append('foreignObject')
+      .attr('x', -12)
+      .attr('y', -12)
+      .attr('width', 24)
+      .attr('height', 24)
+      .style('pointer-events', 'none')
+      .html(d => {
+        const color = d.status === 'secure' ? '#10b981' : d.status === 'vulnerable' ? '#f59e0b' : '#ef4444';
+        let icon = '';
+        if (d.type === 'server') icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`;
+        else if (d.type === 'router') icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`; // Simplified
+        else if (d.type === 'firewall') icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>`;
+        else if (d.type === 'database') icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>`;
+        else if (d.type === 'cloud') icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19x.5.5 0 0 1 .5-.5c2.2 0 4-1.8 4-4 0-2.1-1.6-3.8-3.6-4a7.5 7.5 0 0 0-14.4 2C2.8 12.9 2 14.4 2 16c0 2.2 1.8 4 4 4h11.5z"/></svg>`;
+        else if (d.type === 'iot') icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12s2.545-5 7-5c4.454 0 7 5 7 5s-2.546 5-7 5c-4.455 0-7-5-7-5z"/><circle cx="12" cy="12" r="3"/></svg>`;
+        else icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="12" x="3" y="4" rx="2" ry="2"/><line x1="2" x2="22" y1="20" y2="20"/></svg>`;
+        return `<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">${icon}</div>`;
+      });
+
+    // Node labels
+    node.append('text')
+      .attr('class', 'node-label')
+      .attr('dy', 35)
+      .attr('text-anchor', 'middle')
+      .text(d => d.label)
+      .attr('fill', '#888')
+      .attr('font-size', '10px')
+      .attr('font-family', 'monospace')
+      .style('transition', 'fill 0.3s ease');
+
+    // IP labels (only if zoomed in)
+    node.append('text')
+      .attr('dy', 45)
+      .attr('text-anchor', 'middle')
+      .text(d => d.ip || '')
+      .attr('fill', '#444')
+      .attr('font-size', '8px')
+      .attr('font-family', 'monospace')
+      .attr('opacity', zoomLevel > 1.2 ? 1 : 0);
+
+    simulation.on('tick', () => {
+      link.attr('d', (d: any) => {
+        const sourceX = d.source.x;
+        const sourceY = d.source.y;
+        const targetX = d.target.x;
+        const targetY = d.target.y;
+        
+        // Use a more structured "schematic" curve
+        const midY = (sourceY + targetY) / 2;
+        return `M${sourceX},${sourceY} C${sourceX},${midY} ${targetX},${midY} ${targetX},${targetY}`;
+      });
+
+      node
+        .attr('transform', d => `translate(${d.x},${d.y})`);
+        
+      attackLine
+        .attr('x1', d => {
+          const source = nodes.find(n => n.id === d.from);
+          return source?.x || 0;
+        })
+        .attr('y1', d => {
+          const source = nodes.find(n => n.id === d.from);
+          return source?.y || 0;
+        })
+        .attr('x2', d => {
+          const target = nodes.find(n => n.id === d.to);
+          return target?.x || 0;
+        })
+        .attr('y2', d => {
+          const target = nodes.find(n => n.id === d.to);
+          return target?.y || 0;
+        });
+        
+      // Packets are animated via SVG animateMotion, which automatically follows the path 'd' attribute.
+    });
+
+    function dragstarted(event: any) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      event.subject.fx = event.subject.x;
+      event.subject.fy = event.subject.y;
+    }
+
+    function dragged(event: any) {
+      event.subject.fx = event.x;
+      event.subject.fy = event.y;
+    }
+
+    function dragended(event: any) {
+      if (!event.active) simulation.alphaTarget(0);
+      event.subject.fx = null;
+      event.subject.fy = null;
+    }
+
+    // Handle resize
+    const handleResize = () => {
+      const newWidth = containerRef.current?.clientWidth || 800;
+      const newHeight = containerRef.current?.clientHeight || 600;
+      svg.attr('width', newWidth).attr('height', newHeight);
+      simulation.force('center', d3.forceCenter(newWidth / 2, newHeight / 2)).alpha(0.3).restart();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      simulation.stop();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [nodes, zoomLevel, activeAttacks]);
 
   return (
-    <div className="space-y-6 p-6 bg-[#050505] min-h-full rounded-2xl border border-[#222] cyber-grid">
-      <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-4 rounded-xl flex items-center gap-3">
-        <AlertTriangle size={20} className="shrink-0" />
-        <div>
-          <h3 className="font-bold text-sm">Tool Under Development</h3>
-          <p className="text-xs text-yellow-500/80">This tool is currently under active development. Some features may be inactive or unstable. Use with caution.</p>
-        </div>
-      </div>
-      {/* Header HUD */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-cyber-green/10 rounded-xl border border-cyber-green/20 shadow-[0_0_15px_rgba(0,255,65,0.1)]">
-            <ShieldCheck className="text-cyber-green animate-pulse" size={24} />
+    <div className={cn(
+      "flex flex-col cyber-card rounded-lg overflow-hidden bg-cyber-card/20 backdrop-blur-sm border border-cyber-border relative",
+      isFullScreen ? "fixed inset-0 z-50 h-screen w-screen rounded-none" : "h-full"
+    )}>
+      <div className="corner-accent corner-tl" />
+      <div className="corner-accent corner-tr" />
+      
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-cyber-border bg-cyber-card/40 z-10">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-cyber-green/10 rounded-lg border border-cyber-green/20">
+            <Globe className="w-5 h-5 text-cyber-green" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tighter uppercase font-mono flex items-center gap-2">
-              CyberSuite <span className="text-cyber-green">OS</span> Dashboard
-            </h1>
-            <div className="flex items-center gap-3 text-[10px] font-mono text-gray-500 uppercase">
-              <span className="flex items-center gap-1"><User size={10} className="text-cyber-green" /> Operator: {userName}</span>
-              <span className="flex items-center gap-1"><Fingerprint size={10} className="text-cyber-green" /> Clearance: Level {clearanceLevel}</span>
-              <span className="flex items-center gap-1"><Clock size={10} className="text-cyber-green" /> System Time: {new Date().toLocaleTimeString()}</span>
+            <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-cyber-header">Network Topology</h2>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse" />
+              <span className="text-[10px] font-mono text-cyber-green/60 uppercase">Real-time Monitoring Active</span>
             </div>
           </div>
         </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="px-4 py-2 bg-black/60 border border-white/5 rounded-lg flex items-center gap-3 shadow-inner relative overflow-hidden group">
-            <div className="absolute inset-0 bg-cyber-green/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="flex flex-col items-end relative z-10">
-              <span className="text-[9px] font-mono text-gray-500 uppercase">System Integrity</span>
-              <span className="text-xs font-mono text-white font-bold tracking-widest">SECURE_v4.2</span>
-            </div>
-            <div className="w-12 h-8 relative z-10">
-              <div className="flex items-end gap-0.5 h-full">
-                {[40, 70, 45, 90, 60, 80].map((h, i) => (
-                  <motion.div
-                    key={i}
-                    className="w-1 bg-cyber-green/40 rounded-t-sm"
-                    animate={{ height: [`${h}%`, `${(h + 40) % 100}%`, `${h}%`] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.1 }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
 
-          <div className="px-4 py-2 bg-black/60 border border-white/5 rounded-lg flex items-center gap-3 shadow-inner">
+        <div className="flex items-center gap-6">
+          <div className="hidden md:flex gap-4">
             <div className="flex flex-col items-end">
-              <span className="text-[9px] font-mono text-gray-500 uppercase">System Load</span>
-              <span className="text-xs font-mono text-white font-bold">{Math.round(systemLoad)}%</span>
+              <span className="text-[8px] font-mono text-cyber-text/60 uppercase">Traffic</span>
+              <span className="text-xs font-mono text-cyber-green">{stats.traffic}</span>
             </div>
-            <div className="w-24 h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <motion.div 
-                className={cn("h-full transition-all duration-1000", 
-                  systemLoad > 80 ? "bg-red-500" : systemLoad > 50 ? "bg-amber-500" : "bg-cyber-green"
-                )}
-                animate={{ width: `${systemLoad}%` }}
-              />
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] font-mono text-cyber-text/60 uppercase">Nodes</span>
+              <span className="text-xs font-mono text-cyber-header">{stats.totalNodes}</span>
             </div>
-          </div>
-          <button 
-            onClick={() => fetchThreatIntelligence(false)}
-            className="p-2.5 bg-cyber-green/10 hover:bg-cyber-green/20 border border-cyber-green/20 rounded-lg text-cyber-green transition-all shadow-[0_0_10px_rgba(0,255,65,0.1)] group"
-          >
-            <RefreshCw size={18} className={cn("group-hover:rotate-180 transition-transform duration-500", isLoading ? 'animate-spin' : '')} />
-          </button>
-        </div>
-      </div>
-
-      {/* Live Ticker */}
-      <div className="bg-red-500/5 border border-red-500/10 py-2 px-4 rounded-lg overflow-hidden whitespace-nowrap relative">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-red-500 font-mono text-[10px] font-bold uppercase shrink-0">
-            <ShieldAlert size={12} className="animate-pulse" /> LIVE THREAT FEED:
-          </div>
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={tickerIndex}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="text-[10px] font-mono text-gray-400 uppercase tracking-[0.2em] truncate"
-            >
-              {TICKER_MESSAGES[tickerIndex]}
-            </motion.span>
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* Main Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Active Threats', value: firewallEnabled ? (liveActiveThreats || 0).toLocaleString() : ((liveActiveThreats || 0) * 6).toLocaleString(), icon: AlertTriangle, color: firewallEnabled ? 'text-amber-500' : 'text-red-500', trend: firewallEnabled ? '+12%' : '+450%', trendUp: !firewallEnabled, desc: 'Real-time detected vectors' },
-          { label: 'Blocked Attacks', value: firewallEnabled ? ((liveBlockedAttacks || 0) / 1000).toFixed(1) + 'k' : '0', icon: Shield, color: firewallEnabled ? 'text-emerald-500' : 'text-gray-500', trend: firewallEnabled ? '+5.4%' : '-100%', trendUp: firewallEnabled, desc: 'Successfully mitigated probes' },
-          { label: 'System Health', value: firewallEnabled ? '99.8%' : '64.2%', icon: Activity, color: firewallEnabled ? 'text-blue-500' : 'text-red-500', trend: firewallEnabled ? 'Stable' : 'Critical', trendUp: firewallEnabled, desc: 'Core kernel integrity status' },
-          { label: 'Neural VPN', value: vpnEnabled ? 'CONNECTED' : 'OFFLINE', icon: Globe, color: vpnEnabled ? 'text-blue-500' : 'text-gray-500', trend: vpnEnabled ? 'Secure' : 'Exposed', trendUp: vpnEnabled, desc: 'Encrypted tunnel status' },
-        ].map((stat, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="cyber-card p-5 rounded-xl group relative overflow-hidden transition-all hover:border-white/20"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="absolute inset-0 pointer-events-none opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
-              <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] font-mono text-red-500 uppercase">Breaches</span>
+              <span className="text-xs font-mono text-red-500">{stats.compromised}</span>
             </div>
-            <div className="corner-accent corner-tl" />
-            <div className="corner-accent corner-br" />
-            <div className="flex justify-between items-start mb-4">
-              <div className={cn("p-2.5 rounded-lg bg-black/40 border border-white/5 shadow-inner", stat.color)}>
-                <stat.icon size={20} />
-              </div>
-              <div className={cn("text-[10px] font-mono px-2 py-0.5 rounded border", 
-                stat.trendUp ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" : "text-red-500 border-red-500/20 bg-red-500/5"
-              )}>
-                {stat.trend}
-              </div>
-            </div>
-            <div>
-              <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-1">{stat.label}</p>
-              <h3 className="text-3xl font-bold text-white font-mono tracking-tighter mb-1">{stat.value}</h3>
-              <p className="text-[9px] font-mono text-gray-600 uppercase tracking-tight">{stat.desc}</p>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Advanced Visualizations Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* System Integrity Radar */}
-        <div className="cyber-card rounded-xl p-6 flex flex-col">
-          <div className="corner-accent corner-tl" />
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <Cpu className="w-5 h-5 text-purple-500" />
-              <h2 className="text-sm font-mono uppercase tracking-widest text-white">System Integrity Pulse</h2>
-            </div>
-            <div className="text-[10px] font-mono text-purple-500/70 uppercase">Real-time Vector Analysis</div>
-          </div>
-          <div className="flex-1 min-h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={SYSTEM_INTEGRITY}>
-                <PolarGrid stroke="#222" />
-                <PolarAngleAxis dataKey="subject" stroke="#444" fontSize={10} />
-                <PolarRadiusAxis angle={30} domain={[0, 150]} stroke="#222" tick={false} axisLine={false} />
-                <Radar
-                  name="Integrity"
-                  dataKey="A"
-                  stroke="#a855f7"
-                  fill="#a855f7"
-                  fillOpacity={0.3}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <div className="p-2 bg-black/40 border border-white/5 rounded-lg text-center">
-              <div className="text-[9px] font-mono text-gray-500 uppercase">Overall Score</div>
-              <div className="text-lg font-bold text-cyber-green font-mono">92.4</div>
-            </div>
-            <div className="p-2 bg-black/40 border border-white/5 rounded-lg text-center">
-              <div className="text-[9px] font-mono text-gray-500 uppercase">Threat Level</div>
-              <div className="text-lg font-bold text-amber-500 font-mono">LOW</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Attack Trends Chart */}
-        <div className="lg:col-span-2 cyber-card rounded-xl p-6">
-          <div className="corner-accent corner-tr" />
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-blue-500" />
-              <h2 className="text-sm font-mono uppercase tracking-widest text-white">Attack Surface Trends (24h)</h2>
-            </div>
-            <div className="flex gap-4 text-[10px] font-mono">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-                <span className="text-blue-500/70 uppercase">TOTAL ATTACKS</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                <span className="text-emerald-500/70 uppercase">MITIGATED</span>
-              </div>
-            </div>
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={attackTrends}>
-                <defs>
-                  <linearGradient id="colorAttacks" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorBlocked" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-                <XAxis 
-                  dataKey="time" 
-                  stroke="#333" 
-                  fontSize={10} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tick={{ fill: '#555' }}
-                  interval={3}
-                />
-                <YAxis 
-                  stroke="#333" 
-                  fontSize={10} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tick={{ fill: '#555' }}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0d0d0d', border: '1px solid #222', borderRadius: '8px', fontSize: '10px', color: '#fff' }}
-                  itemStyle={{ fontSize: '10px' }}
-                  cursor={{ stroke: '#333', strokeWidth: 1 }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="attacks" 
-                  stroke="#3b82f6" 
-                  fillOpacity={1} 
-                  fill="url(#colorAttacks)" 
-                  strokeWidth={2}
-                  animationDuration={2000}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="blocked" 
-                  stroke="#10b981" 
-                  fillOpacity={1} 
-                  fill="url(#colorBlocked)" 
-                  strokeWidth={2}
-                  animationDuration={2000}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Real-time Traffic Analysis */}
-        <div className="lg:col-span-3 cyber-card rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-amber-500" />
-              <h2 className="text-sm font-mono uppercase tracking-widest text-white">Real-time Traffic Analysis</h2>
-            </div>
-            <div className="text-[10px] font-mono text-gray-500 uppercase">Throughput: 1.2 GB/s</div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="md:col-span-3 h-[200px] bg-black/40 rounded-xl border border-white/5 p-4 relative overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-around">
-                {[...Array(20)].map((_, i) => (
-                  <motion.div
-                    key={i}
-                    className="w-1 bg-blue-500/30 rounded-full"
-                    animate={{ 
-                      height: [
-                        `${Math.random() * 60 + 20}%`, 
-                        `${Math.random() * 60 + 20}%`, 
-                        `${Math.random() * 60 + 20}%`
-                      ] 
-                    }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  />
-                ))}
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-              <div className="absolute bottom-4 left-4 text-[10px] font-mono text-blue-400 uppercase">Packet Inspection Active</div>
-            </div>
-            <div className="space-y-4">
-              <div className="p-3 bg-white/5 border border-white/5 rounded-lg">
-                <div className="text-[9px] font-mono text-gray-500 uppercase mb-1">TCP Handshakes</div>
-                <div className="text-lg font-bold text-white">12,432/s</div>
-              </div>
-              <div className="p-3 bg-white/5 border border-white/5 rounded-lg">
-                <div className="text-[9px] font-mono text-gray-500 uppercase mb-1">UDP Datagrams</div>
-                <div className="text-lg font-bold text-white">8,102/s</div>
-              </div>
-              <div className="p-3 bg-white/5 border border-white/5 rounded-lg">
-                <div className="text-[9px] font-mono text-gray-500 uppercase mb-1">ICMP Echo</div>
-                <div className="text-lg font-bold text-white">452/s</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tools & Map Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        
-        {/* Quick Tools Sidebar */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
-              <Layers className="w-3 h-3 text-cyber-green" /> Tactical Modules
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { id: 'topology', name: 'Net Map', icon: Globe, color: 'text-emerald-400' },
-              { id: 'cyber-range', name: 'Range', icon: Target, color: 'text-red-400' },
-              { id: 'phishing', name: 'Phish', icon: Mail, color: 'text-blue-400' },
-              { id: 'passwords', name: 'PassLab', icon: Lock, color: 'text-cyber-green' },
-              { id: 'crypto', name: 'Crypto', icon: Hash, color: 'text-purple-400' },
-              { id: 'network', name: 'OSINT', icon: Globe, color: 'text-orange-400' },
-              { id: 'dorks', name: 'Dorks', icon: Search, color: 'text-orange-400' },
-              { id: 'payloads', name: 'Payloads', icon: TerminalIcon, color: 'text-red-400' },
-              { id: 'scanner', name: 'Scanner', icon: Search, color: 'text-yellow-400' },
-            ].map((tool, i) => (
-              <motion.button
-                key={tool.id}
-                whileHover={{ scale: 1.02, translateY: -2 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => onNavigate?.(tool.id)}
-                className="cyber-card flex flex-col items-center justify-center gap-2 p-4 rounded-xl group"
-              >
-                <div className={cn("p-2 rounded-lg bg-black/40 group-hover:bg-white/5 transition-all", tool.color)}>
-                  <tool.icon size={18} />
-                </div>
-                <span className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-wider group-hover:text-white transition-colors">
-                  {tool.name}
-                </span>
-              </motion.button>
-            ))}
           </div>
           
-          {/* AI Insights Card */}
-          <div className="cyber-card p-4 rounded-xl bg-gradient-to-br from-cyber-green/5 to-transparent border-cyber-green/10">
-            <div className="flex items-center gap-2 mb-3">
-              <Bot className="text-cyber-green" size={16} />
-              <span className="text-[10px] font-mono text-cyber-green uppercase font-bold">Alen AI Insights</span>
-            </div>
-            <p className="text-[10px] font-mono text-gray-400 leading-relaxed italic">
-              "System integrity is currently at 92%. I recommend rotating SSH keys for node 192.168.1.45 due to repeated brute-force attempts."
-            </p>
-          </div>
-        </div>
-
-        {/* Global Threat Map */}
-        <div className="lg:col-span-3 cyber-card rounded-xl overflow-hidden flex flex-col">
-          <div className="corner-accent corner-tl" />
-          <div className="corner-accent corner-tr" />
-          <div className="p-4 border-b border-white/5 bg-black/40 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MapIcon className="w-5 h-5 text-cyber-green" />
-              <h2 className="text-sm font-mono uppercase tracking-widest text-white">Neural Threat Topology</h2>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-cyber-green rounded-full shadow-[0_0_8px_#00ff41]" />
-                <span className="text-[9px] font-mono text-gray-500 uppercase">Active Nodes</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_#ef4444]" />
-                <span className="text-[9px] font-mono text-gray-500 uppercase">Incursions</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex-1 min-h-[450px] relative bg-black/20">
-            <ThreatMap onAction={onNavigate} initialNodes={mapNodes} initialLines={attackLines} />
+          <div className="flex gap-2">
+            <button 
+              onClick={handleScan}
+              disabled={isScanning}
+              className={cn(
+                "p-2 rounded-lg border transition-all flex items-center gap-2",
+                isScanning 
+                  ? "bg-cyber-green/20 border-cyber-green/40 text-cyber-green" 
+                  : "bg-cyber-card/5 border-cyber-border text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/10"
+              )}
+            >
+              <Search size={14} className={isScanning ? "animate-spin" : ""} />
+              <span className="text-[10px] font-mono uppercase hidden sm:inline">Deep Scan</span>
+            </button>
+            <button 
+              onClick={fetchNetworkData}
+              className="p-2 bg-cyber-card/5 border border-cyber-border rounded-lg text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/10 transition-all"
+            >
+              <RefreshCw size={14} />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* SIEM & News Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main Visualization Area */}
+      <div 
+        ref={containerRef} 
+        className={cn(
+          "flex-1 relative overflow-hidden transition-colors duration-1000",
+          stats.compromised > 0 
+            ? "bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-red-900/20 via-black to-black" 
+            : "bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-900/10 via-black to-black"
+        )}
+      >
+        {/* Grid Background */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#06b6d415_1px,transparent_1px),linear-gradient(to_bottom,#06b6d415_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,#000_20%,transparent_100%)] pointer-events-none" />
         
-        {/* SIEM Real-time Logs */}
-        <div className="lg:col-span-2 cyber-card rounded-xl overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-white/5 bg-black/40 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <TerminalIcon className="w-5 h-5 text-emerald-500" />
-                <h2 className="text-sm font-mono uppercase tracking-widest text-white">SIEM Event Stream</h2>
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-cyber-bg/60 backdrop-blur-sm z-20">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative">
+                <div className="w-16 h-16 border-2 border-cyan-500/20 rounded-full" />
+                <div className="absolute inset-0 w-16 h-16 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                <Globe className="absolute inset-0 m-auto w-6 h-6 text-cyan-400 animate-pulse" />
               </div>
-              <div className="flex items-center gap-2 border-l border-white/5 pl-4">
-                <select 
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                  className="bg-black/60 border border-white/10 text-[9px] font-mono text-gray-400 px-2 py-1 rounded outline-none focus:border-cyber-green transition-colors"
-                >
-                  <option value="all">ALL_EVENTS</option>
-                  <option value="critical">CRITICAL</option>
-                  <option value="high">HIGH</option>
-                  <option value="medium">MEDIUM</option>
-                </select>
+              <div className="flex flex-col items-center">
+                <span className="text-xs font-mono text-cyan-400 tracking-[0.2em] uppercase">Initializing Neural Map</span>
+                <span className="text-[10px] font-mono text-cyan-500/40 mt-1">Mapping network interfaces...</span>
               </div>
+            </div>
+          </div>
+        )}
+
+        {isScanning && (
+          <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
+            <div className="absolute inset-0 bg-cyan-500/5 animate-pulse" />
+            <motion.div 
+              initial={{ top: '-10%' }}
+              animate={{ top: '110%' }}
+              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              className="absolute left-0 right-0 h-1 bg-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.8)] z-20"
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-[80%] h-[80%] border border-cyan-500/20 rounded-full animate-[ping_3s_linear_infinite]" />
+            </div>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-cyan-500/20 border border-cyan-500/40 rounded-full backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+              <span className="text-[10px] font-mono text-cyan-400 animate-pulse uppercase tracking-widest">Active Deep Scan in Progress...</span>
+            </div>
+          </div>
+        )}
+
+        <svg 
+          ref={svgRef} 
+          className="w-full h-full"
+          onClick={() => setSelectedNode(null)}
+        />
+
+        {/* Zoom Controls */}
+        <div className="absolute bottom-6 left-6 flex flex-col gap-2 z-10">
+          <button 
+            onClick={() => {
+              if (svgRef.current && zoomRef.current) {
+                d3.select(svgRef.current).transition().duration(500).call(zoomRef.current.scaleBy as any, 1.5);
+              }
+            }}
+            className="p-2 bg-cyber-card/60 border border-cyber-border rounded-lg text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/80 transition-all shadow-xl"
+            title="Zoom In"
+          >
+            <ZoomIn size={16} />
+          </button>
+          <button 
+            onClick={() => {
+              if (svgRef.current && zoomRef.current) {
+                d3.select(svgRef.current).transition().duration(500).call(zoomRef.current.scaleBy as any, 0.667);
+              }
+            }}
+            className="p-2 bg-cyber-card/60 border border-cyber-border rounded-lg text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/80 transition-all shadow-xl"
+            title="Zoom Out"
+          >
+            <ZoomOut size={16} />
+          </button>
+          <button 
+            onClick={() => setIsFullScreen(!isFullScreen)}
+            className="p-2 bg-cyber-card/60 border border-cyber-border rounded-lg text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/80 transition-all shadow-xl mt-2"
+            title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+          >
+            {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
+        </div>
+
+        {/* Full Screen Close Button */}
+        {isFullScreen && (
+          <button 
+            onClick={() => setIsFullScreen(false)}
+            className="absolute top-4 right-4 z-50 p-3 bg-red-500/20 backdrop-blur-md border border-red-500/50 rounded-full text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+            title="Close Full Screen"
+          >
+            <X size={24} />
+          </button>
+        )}
+
+        {/* Legend */}
+        <div className="absolute bottom-6 right-6 p-4 bg-cyber-card/60 border border-cyber-border rounded-xl backdrop-blur-md z-10 shadow-xl">
+          <h4 className="text-[10px] font-mono text-cyber-text/60 uppercase mb-3 tracking-widest">Node Status</h4>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+              <span className="text-[10px] font-mono text-cyber-text uppercase">Secure</span>
             </div>
             <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsPaused(!isPaused)}
-                className={cn("flex items-center gap-2 px-3 py-1 rounded border transition-all", 
-                  isPaused ? "bg-amber-500/10 border-amber-500/20 text-amber-500" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
-                )}
-              >
-                <div className={cn("w-1.5 h-1.5 rounded-full", isPaused ? "bg-amber-500" : "bg-emerald-500 animate-pulse")} />
-                <span className="text-[9px] font-mono uppercase font-bold">{isPaused ? 'PAUSED' : 'LIVE'}</span>
-              </button>
+              <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
+              <span className="text-[10px] font-mono text-cyber-text uppercase">Vulnerable</span>
             </div>
-          </div>
-          <div className="overflow-x-auto flex-1 max-h-[350px] custom-scrollbar">
-            <table className="w-full text-left text-[10px] font-mono whitespace-nowrap">
-              <thead className="sticky top-0 bg-[#0d0d0d] z-10 border-b border-white/5">
-                <tr className="text-gray-500 uppercase">
-                  <th className="p-4 font-normal">Time</th>
-                  <th className="p-4 font-normal">Signature</th>
-                  <th className="p-4 font-normal">Source</th>
-                  <th className="p-4 font-normal">Target</th>
-                  <th className="p-4 font-normal">Proto</th>
-                  <th className="p-4 font-normal">Geo</th>
-                  <th className="p-4 font-normal">Action</th>
-                  <th className="p-4 font-normal">Risk</th>
-                </tr>
-              </thead>
-              <tbody className="text-gray-300">
-                <AnimatePresence initial={false}>
-                  {logs
-                    .filter(log => filter === 'all' || log.severity === filter)
-                    .map((log) => (
-                    <motion.tr 
-                      key={log.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 10 }}
-                      onClick={() => setSelectedLog(log)}
-                      className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer group"
-                    >
-                      <td className="p-4 text-gray-600">{log.time}</td>
-                      <td className="p-4 font-bold text-white group-hover:text-cyber-green transition-colors truncate max-w-[200px]">{log.event}</td>
-                      <td className="p-4 text-blue-400/80">{log.source}</td>
-                      <td className="p-4 text-purple-400/80">{log.destination ? `${log.destination}:${log.port}` : 'N/A'}</td>
-                      <td className="p-4 text-gray-400">{log.protocol || 'N/A'}</td>
-                      <td className="p-4">
-                        <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[8px] text-gray-400">
-                          {log.geo || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[8px] text-gray-400">
-                          {log.status}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <span className={`px-2 py-0.5 rounded text-[8px] uppercase font-bold ${
-                          log.severity === 'critical' ? 'bg-red-500/10 text-red-500 border border-red-500/20' :
-                          log.severity === 'high' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
-                          log.severity === 'medium' ? 'bg-blue-500/10 text-blue-500 border border-red-500/20' :
-                          'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                        }`}>
-                          {log.severity}
-                        </span>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-              </tbody>
-            </table>
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse" />
+              <span className="text-[10px] font-mono text-cyber-text uppercase">Compromised</span>
+            </div>
           </div>
         </div>
 
-        {/* Threat Intelligence Feed */}
-        <div className="cyber-card rounded-xl flex flex-col">
-          <div className="p-4 border-b border-white/5 bg-black/40 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Radio className="w-5 h-5 text-red-500" />
-              <h2 className="text-sm font-mono uppercase tracking-widest text-white">Live Threat Feed</h2>
-            </div>
-            <div className="text-[9px] font-mono text-gray-500 uppercase">Source: Global_Net</div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar max-h-[350px]">
-            {isLoading && liveFeed.length === 0 ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="animate-pulse space-y-2">
-                    <div className="h-3 bg-white/5 rounded w-3/4" />
-                    <div className="h-2 bg-white/5 rounded w-full" />
-                    <div className="h-2 bg-white/5 rounded w-1/2" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <AnimatePresence mode="popLayout">
-                {(liveFeed.length > 0 ? liveFeed : threatNews).map((news, i) => (
-                  <motion.div
-                    key={news.title + i}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.3 }}
-                    className="p-3 bg-white/5 border border-white/5 rounded-lg hover:border-red-500/30 transition-all group cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded uppercase font-bold ${
-                        news.severity === 'critical' ? 'bg-red-500 text-white' :
-                        news.severity === 'high' ? 'bg-amber-500 text-black' :
-                        news.severity === 'medium' ? 'bg-blue-500 text-white' :
-                        'bg-emerald-500 text-white'
-                      }`}>
-                        {news.severity}
-                      </span>
-                      <span className="text-[8px] font-mono text-gray-600">{news.timestamp}</span>
-                    </div>
-                    <h3 className="text-[11px] font-bold text-white mb-1 group-hover:text-red-400 transition-colors line-clamp-1">{news.title}</h3>
-                    <p className="text-[10px] text-gray-500 leading-relaxed mb-2 line-clamp-2">{news.summary}</p>
-                    <div className="flex items-center justify-between text-[8px] font-mono text-gray-600">
-                      <span>{news.source}</span>
-                      <button 
-                        onClick={() => onNavigate?.('scanner', news.title)}
-                        className="text-blue-500 hover:text-blue-400 uppercase font-bold"
-                      >
-                        Analyze
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            )}
-          </div>
-          <div className="p-3 border-t border-white/5 bg-black/40 text-[9px] font-mono text-gray-600 flex justify-between">
-            <span>SYNC: {lastUpdated.toLocaleTimeString()}</span>
-            <span className="text-cyber-green animate-pulse">● LIVE</span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Log Detail Modal */}
-      <AnimatePresence>
-        {selectedLog && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6"
-            onClick={() => setSelectedLog(null)}
-          >
+        {/* Detail Panel */}
+        <AnimatePresence>
+          {selectedNode && (
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="cyber-card rounded-2xl w-full max-w-lg overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]"
-              onClick={e => e.stopPropagation()}
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 50 }}
+              className="absolute top-6 right-6 w-80 bg-cyber-card/80 border border-cyber-border rounded-2xl backdrop-blur-2xl z-30 shadow-2xl overflow-hidden"
             >
-              <div className="corner-accent corner-tl" />
-              <div className="corner-accent corner-tr" />
-              <div className="p-5 border-b border-white/10 bg-black/60 flex items-center justify-between">
+              {/* Panel Header */}
+              <div className={cn(
+                "p-4 flex items-center justify-between border-b",
+                selectedNode.status === 'secure' ? "bg-emerald-500/10 border-emerald-500/20" :
+                selectedNode.status === 'vulnerable' ? "bg-amber-500/10 border-amber-500/20" :
+                "bg-red-500/10 border-red-500/20"
+              )}>
                 <div className="flex items-center gap-3">
-                  <div className={cn("p-2 rounded-lg", 
-                    selectedLog.severity === 'critical' ? "bg-red-500/20 text-red-500" : "bg-amber-500/20 text-amber-500"
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    selectedNode.status === 'secure' ? "bg-emerald-500/20 text-emerald-400" :
+                    selectedNode.status === 'vulnerable' ? "bg-amber-500/20 text-amber-400" :
+                    "bg-red-500/20 text-red-400"
                   )}>
-                    <ShieldAlert size={20} />
+                    {selectedNode.type === 'server' ? <Server size={18} /> :
+                     selectedNode.type === 'router' ? <Router size={18} /> :
+                     selectedNode.type === 'firewall' ? <Shield size={18} /> :
+                     <Laptop size={18} />}
                   </div>
                   <div>
-                    <h3 className="text-sm font-mono font-bold text-white uppercase tracking-widest">Event Forensic Analysis</h3>
-                    <div className="text-[10px] font-mono text-gray-500 uppercase">ID: {selectedLog.id}</div>
+                    <h3 className="text-sm font-mono font-bold text-cyber-header uppercase tracking-tight">{selectedNode.label}</h3>
+                    <span className="text-[10px] font-mono text-cyber-text/60">{selectedNode.ip}</span>
                   </div>
                 </div>
-                <button onClick={() => setSelectedLog(null)} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 transition-colors">
-                  <Search size={18} className="rotate-45" />
+                <button 
+                  onClick={() => setSelectedNode(null)}
+                  className="p-1 text-cyber-text/60 hover:text-cyber-header transition-colors"
+                >
+                  <X size={20} />
                 </button>
               </div>
-              <div className="p-8 space-y-6">
-                <div className="space-y-2">
-                  <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Event Signature</div>
-                  <div className="text-xl font-bold text-white tracking-tight">{selectedLog.event}</div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 p-4 bg-white/5 border border-white/10 rounded-xl">
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase">Source Vector</div>
-                    <div className="text-xs font-mono text-blue-400 font-bold">{selectedLog.source} {selectedLog.geo && <span className="text-gray-500">[{selectedLog.geo}]</span>}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase">Target Vector</div>
-                    <div className="text-xs font-mono text-purple-400 font-bold">{selectedLog.destination ? `${selectedLog.destination}:${selectedLog.port}` : 'N/A'}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase">Protocol</div>
-                    <div className="text-xs font-mono text-gray-300">{selectedLog.protocol || 'N/A'}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase">MITRE Tactic</div>
-                    <div className="text-xs font-mono text-gray-300">{selectedLog.mitreTactic || 'N/A'}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase">MITRE Technique</div>
-                    <div className="text-xs font-mono text-gray-300">{selectedLog.mitreTechnique || 'N/A'}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase">Status</div>
-                    <div className="text-xs font-mono text-emerald-500 uppercase font-bold">{selectedLog.status}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase">Risk Level</div>
-                    <div className={cn("text-xs font-mono uppercase font-bold", 
-                      selectedLog.severity === 'critical' ? "text-red-500" : selectedLog.severity === 'high' ? 'text-amber-500' : selectedLog.severity === 'medium' ? 'text-blue-500' : 'text-emerald-500'
-                    )}>{selectedLog.severity} {selectedLog.confidence && <span className="text-gray-500">({selectedLog.confidence}% conf)</span>}</div>
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Forensic Summary</div>
-                  <div className="p-4 bg-black/40 border border-white/5 rounded-xl text-xs text-gray-400 leading-relaxed font-mono">
-                    {selectedLog.details || "Automated heuristic analysis suggests a coordinated probe targeting legacy SSH protocols. Source IP has been flagged in global threat databases. Mitigation protocols successfully engaged."}
-                  </div>
-                </div>
-
-                {selectedLog.payloadSnippet && selectedLog.payloadSnippet !== 'N/A' && (
-                  <div className="space-y-2">
-                    <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Payload Snippet</div>
-                    <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl text-[10px] text-red-400/80 font-mono break-all">
-                      {selectedLog.payloadSnippet}
+              {/* Panel Content */}
+              <div className="p-5 space-y-6">
+                {/* Metrics Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-cyber-card/5 border border-cyber-border rounded-xl">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Activity size={12} className="text-cyber-green" />
+                      <span className="text-[9px] font-mono text-cyber-text/60 uppercase">Traffic</span>
                     </div>
+                    <span className="text-sm font-mono text-cyber-header">{selectedNode.traffic}%</span>
                   </div>
-                )}
+                  <div className="p-3 bg-cyber-card/5 border border-cyber-border rounded-xl">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Shield size={12} className={cn(
+                        selectedNode.threatLevel! > 70 ? "text-red-500" : "text-emerald-500"
+                      )} />
+                      <span className="text-[9px] font-mono text-cyber-text/60 uppercase">Threat</span>
+                    </div>
+                    <span className="text-sm font-mono text-cyber-header">{selectedNode.threatLevel}%</span>
+                  </div>
+                </div>
 
-                <div className="flex gap-3 pt-2">
-                  <button 
-                    onClick={() => onNavigate?.('scanner', selectedLog.source)}
-                    className="flex-1 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl text-xs font-mono font-bold text-red-500 transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+                {/* System Info */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-[10px] font-mono">
+                    <span className="text-cyber-text/60 uppercase">Operating System</span>
+                    <span className="text-cyber-header">{selectedNode.os}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-mono">
+                    <span className="text-cyber-text/60 uppercase">System Uptime</span>
+                    <span className="text-cyber-header">{selectedNode.uptime}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-mono">
+                    <span className="text-cyber-text/60 uppercase">Status</span>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-[8px] font-bold uppercase",
+                      selectedNode.status === 'secure' ? "bg-emerald-500/20 text-emerald-400" :
+                      selectedNode.status === 'vulnerable' ? "bg-amber-500/20 text-amber-400" :
+                      "bg-red-500/20 text-red-400"
+                    )}>
+                      {selectedNode.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Analysis Box */}
+                <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Info size={14} className="text-cyan-400" />
+                    <span className="text-[10px] font-mono text-white uppercase tracking-widest">Core Analysis</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 leading-relaxed font-sans">
+                    {selectedNode.status === 'secure' ? 
+                      'Node integrity verified. All cryptographic signatures match. Traffic patterns are consistent with baseline behavior.' :
+                      selectedNode.status === 'vulnerable' ?
+                      'Potential entry point detected. Outdated software versions found. Immediate patching recommended to prevent lateral movement.' :
+                      'ACTIVE BREACH DETECTED. Unauthorized access in progress. System isolation required to prevent data exfiltration.'
+                    }
+                  </p>
+                </div>
+
+                {/* Simulated Logs */}
+                <div className="p-3 bg-black/60 border border-white/10 rounded-xl space-y-1 h-24 overflow-hidden relative">
+                  <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-b from-black/60 to-transparent z-10" />
+                  <div className="absolute bottom-0 left-0 w-full h-4 bg-gradient-to-t from-black/60 to-transparent z-10" />
+                  <motion.div 
+                    animate={{ y: [0, -40] }} 
+                    transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+                    className="flex flex-col gap-1"
                   >
-                    <Bug size={14} /> Block & Scan
+                    <span className="text-[8px] font-mono text-gray-500">[SYS] Initializing diagnostic routine...</span>
+                    <span className="text-[8px] font-mono text-gray-500">[NET] Pinging {selectedNode.ip}... OK</span>
+                    <span className="text-[8px] font-mono text-gray-500">[SEC] Checking firewall rules...</span>
+                    <span className={cn("text-[8px] font-mono", selectedNode.status === 'secure' ? "text-emerald-500" : "text-amber-500")}>
+                      [SEC] {selectedNode.status === 'secure' ? 'No anomalies detected.' : 'Warning: Unusual port activity.'}
+                    </span>
+                    <span className="text-[8px] font-mono text-gray-500">[SYS] Memory dump analysis complete.</span>
+                    <span className="text-[8px] font-mono text-gray-500">[NET] Connection established.</span>
+                    <span className="text-[8px] font-mono text-gray-500">[SYS] Awaiting further instructions.</span>
+                  </motion.div>
+                </div>
+
+                {/* Actions */}
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => handleNodeAction('isolate')}
+                    className="flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-mono text-white transition-all group"
+                  >
+                    <Lock size={12} className="text-gray-500 group-hover:text-white" />
+                    ISOLATE
                   </button>
                   <button 
-                    onClick={() => onNavigate?.('network', selectedLog.source)}
-                    className="flex-1 py-3 bg-cyber-green/10 hover:bg-cyber-green/20 border border-cyber-green/30 rounded-xl text-xs font-mono font-bold text-cyber-green transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+                    onClick={() => handleNodeAction(selectedNode.status === 'secure' ? 'scan' : 'remediate')}
+                    className="flex items-center justify-center gap-2 py-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl text-[10px] font-mono text-cyan-400 transition-all"
                   >
-                    <Wifi size={14} /> Trace Route
+                    {selectedNode.status === 'secure' ? <Search size={12} /> : <Zap size={12} />}
+                    {selectedNode.status === 'secure' ? 'DEEP SCAN' : 'REMEDIATE'}
                   </button>
                 </div>
               </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
