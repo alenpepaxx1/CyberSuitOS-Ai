@@ -1,4 +1,7 @@
-# For advanced analysis with artificial intelligence you must have a gemini api key.
+# Important Notice
+This application is integrated with Google Gemini AI. Some advanced tools and modules inside the Vulnerability Scanner require a valid Gemini API key to function properly. Without the API key, only the local modules will run (such as basic scanning functions). Please ensure you have configured your Gemini API key if you want to access the full set of online features.
+
+
 <div align="center">
 <img width="1920" height="2577" alt="Cyber" src="https://i.ibb.co/xSfwgG0M/screencapture-localhost-3000-2026-04-04-15-35-55.png" />
 </div>
