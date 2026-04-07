@@ -564,23 +564,23 @@ export default function NetworkTopology() {
 
   return (
     <div className={cn(
-      "flex flex-col cyber-card rounded-lg overflow-hidden bg-black/20 backdrop-blur-sm border border-white/5 relative",
+      "flex flex-col cyber-card rounded-lg overflow-hidden bg-cyber-card/20 backdrop-blur-sm border border-cyber-border relative",
       isFullScreen ? "fixed inset-0 z-50 h-screen w-screen rounded-none" : "h-full"
     )}>
       <div className="corner-accent corner-tl" />
       <div className="corner-accent corner-tr" />
       
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/5 bg-black/40 z-10">
+      <div className="flex items-center justify-between p-4 border-b border-cyber-border bg-cyber-card/40 z-10">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
-            <Globe className="w-5 h-5 text-cyan-400" />
+          <div className="p-2 bg-cyber-green/10 rounded-lg border border-cyber-green/20">
+            <Globe className="w-5 h-5 text-cyber-green" />
           </div>
           <div>
-            <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white">Network Topology</h2>
+            <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-cyber-header">Network Topology</h2>
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
-              <span className="text-[10px] font-mono text-cyan-500/60 uppercase">Real-time Monitoring Active</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse" />
+              <span className="text-[10px] font-mono text-cyber-green/60 uppercase">Real-time Monitoring Active</span>
             </div>
           </div>
         </div>
@@ -588,12 +588,12 @@ export default function NetworkTopology() {
         <div className="flex items-center gap-6">
           <div className="hidden md:flex gap-4">
             <div className="flex flex-col items-end">
-              <span className="text-[8px] font-mono text-gray-500 uppercase">Traffic</span>
-              <span className="text-xs font-mono text-cyan-400">{stats.traffic}</span>
+              <span className="text-[8px] font-mono text-cyber-text/60 uppercase">Traffic</span>
+              <span className="text-xs font-mono text-cyber-green">{stats.traffic}</span>
             </div>
             <div className="flex flex-col items-end">
-              <span className="text-[8px] font-mono text-gray-500 uppercase">Nodes</span>
-              <span className="text-xs font-mono text-white">{stats.totalNodes}</span>
+              <span className="text-[8px] font-mono text-cyber-text/60 uppercase">Nodes</span>
+              <span className="text-xs font-mono text-cyber-header">{stats.totalNodes}</span>
             </div>
             <div className="flex flex-col items-end">
               <span className="text-[8px] font-mono text-red-500 uppercase">Breaches</span>
@@ -608,8 +608,8 @@ export default function NetworkTopology() {
               className={cn(
                 "p-2 rounded-lg border transition-all flex items-center gap-2",
                 isScanning 
-                  ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-400" 
-                  : "bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
+                  ? "bg-cyber-green/20 border-cyber-green/40 text-cyber-green" 
+                  : "bg-cyber-card/5 border-cyber-border text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/10"
               )}
             >
               <Search size={14} className={isScanning ? "animate-spin" : ""} />
@@ -617,7 +617,7 @@ export default function NetworkTopology() {
             </button>
             <button 
               onClick={fetchNetworkData}
-              className="p-2 bg-white/5 border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+              className="p-2 bg-cyber-card/5 border border-cyber-border rounded-lg text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/10 transition-all"
             >
               <RefreshCw size={14} />
             </button>
@@ -639,7 +639,7 @@ export default function NetworkTopology() {
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#06b6d415_1px,transparent_1px),linear-gradient(to_bottom,#06b6d415_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,#000_20%,transparent_100%)] pointer-events-none" />
         
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-20">
+          <div className="absolute inset-0 flex items-center justify-center bg-cyber-bg/60 backdrop-blur-sm z-20">
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <div className="w-16 h-16 border-2 border-cyan-500/20 rounded-full" />
@@ -686,7 +686,7 @@ export default function NetworkTopology() {
                 d3.select(svgRef.current).transition().duration(500).call(zoomRef.current.scaleBy as any, 1.5);
               }
             }}
-            className="p-2 bg-black/60 border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-black/80 transition-all shadow-xl"
+            className="p-2 bg-cyber-card/60 border border-cyber-border rounded-lg text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/80 transition-all shadow-xl"
             title="Zoom In"
           >
             <ZoomIn size={16} />
@@ -697,14 +697,14 @@ export default function NetworkTopology() {
                 d3.select(svgRef.current).transition().duration(500).call(zoomRef.current.scaleBy as any, 0.667);
               }
             }}
-            className="p-2 bg-black/60 border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-black/80 transition-all shadow-xl"
+            className="p-2 bg-cyber-card/60 border border-cyber-border rounded-lg text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/80 transition-all shadow-xl"
             title="Zoom Out"
           >
             <ZoomOut size={16} />
           </button>
           <button 
             onClick={() => setIsFullScreen(!isFullScreen)}
-            className="p-2 bg-black/60 border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-black/80 transition-all shadow-xl mt-2"
+            className="p-2 bg-cyber-card/60 border border-cyber-border rounded-lg text-cyber-text/60 hover:text-cyber-header hover:bg-cyber-card/80 transition-all shadow-xl mt-2"
             title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
           >
             {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
@@ -723,20 +723,20 @@ export default function NetworkTopology() {
         )}
 
         {/* Legend */}
-        <div className="absolute bottom-6 right-6 p-4 bg-black/60 border border-white/10 rounded-xl backdrop-blur-md z-10 shadow-xl">
-          <h4 className="text-[10px] font-mono text-gray-500 uppercase mb-3 tracking-widest">Node Status</h4>
+        <div className="absolute bottom-6 right-6 p-4 bg-cyber-card/60 border border-cyber-border rounded-xl backdrop-blur-md z-10 shadow-xl">
+          <h4 className="text-[10px] font-mono text-cyber-text/60 uppercase mb-3 tracking-widest">Node Status</h4>
           <div className="space-y-2">
             <div className="flex items-center gap-3">
               <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-              <span className="text-[10px] font-mono text-gray-300 uppercase">Secure</span>
+              <span className="text-[10px] font-mono text-cyber-text uppercase">Secure</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
-              <span className="text-[10px] font-mono text-gray-300 uppercase">Vulnerable</span>
+              <span className="text-[10px] font-mono text-cyber-text uppercase">Vulnerable</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse" />
-              <span className="text-[10px] font-mono text-gray-300 uppercase">Compromised</span>
+              <span className="text-[10px] font-mono text-cyber-text uppercase">Compromised</span>
             </div>
           </div>
         </div>
@@ -748,7 +748,7 @@ export default function NetworkTopology() {
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 50 }}
-              className="absolute top-6 right-6 w-80 bg-black/80 border border-white/10 rounded-2xl backdrop-blur-2xl z-30 shadow-2xl overflow-hidden"
+              className="absolute top-6 right-6 w-80 bg-cyber-card/80 border border-cyber-border rounded-2xl backdrop-blur-2xl z-30 shadow-2xl overflow-hidden"
             >
               {/* Panel Header */}
               <div className={cn(
@@ -770,13 +770,13 @@ export default function NetworkTopology() {
                      <Laptop size={18} />}
                   </div>
                   <div>
-                    <h3 className="text-sm font-mono font-bold text-white uppercase tracking-tight">{selectedNode.label}</h3>
-                    <span className="text-[10px] font-mono text-gray-500">{selectedNode.ip}</span>
+                    <h3 className="text-sm font-mono font-bold text-cyber-header uppercase tracking-tight">{selectedNode.label}</h3>
+                    <span className="text-[10px] font-mono text-cyber-text/60">{selectedNode.ip}</span>
                   </div>
                 </div>
                 <button 
                   onClick={() => setSelectedNode(null)}
-                  className="p-1 text-gray-500 hover:text-white transition-colors"
+                  className="p-1 text-cyber-text/60 hover:text-cyber-header transition-colors"
                 >
                   <X size={20} />
                 </button>
@@ -786,36 +786,36 @@ export default function NetworkTopology() {
               <div className="p-5 space-y-6">
                 {/* Metrics Grid */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
+                  <div className="p-3 bg-cyber-card/5 border border-cyber-border rounded-xl">
                     <div className="flex items-center gap-2 mb-1">
-                      <Activity size={12} className="text-cyan-400" />
-                      <span className="text-[9px] font-mono text-gray-500 uppercase">Traffic</span>
+                      <Activity size={12} className="text-cyber-green" />
+                      <span className="text-[9px] font-mono text-cyber-text/60 uppercase">Traffic</span>
                     </div>
-                    <span className="text-sm font-mono text-white">{selectedNode.traffic}%</span>
+                    <span className="text-sm font-mono text-cyber-header">{selectedNode.traffic}%</span>
                   </div>
-                  <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
+                  <div className="p-3 bg-cyber-card/5 border border-cyber-border rounded-xl">
                     <div className="flex items-center gap-2 mb-1">
                       <Shield size={12} className={cn(
                         selectedNode.threatLevel! > 70 ? "text-red-500" : "text-emerald-500"
                       )} />
-                      <span className="text-[9px] font-mono text-gray-500 uppercase">Threat</span>
+                      <span className="text-[9px] font-mono text-cyber-text/60 uppercase">Threat</span>
                     </div>
-                    <span className="text-sm font-mono text-white">{selectedNode.threatLevel}%</span>
+                    <span className="text-sm font-mono text-cyber-header">{selectedNode.threatLevel}%</span>
                   </div>
                 </div>
 
                 {/* System Info */}
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-[10px] font-mono">
-                    <span className="text-gray-500 uppercase">Operating System</span>
-                    <span className="text-white">{selectedNode.os}</span>
+                    <span className="text-cyber-text/60 uppercase">Operating System</span>
+                    <span className="text-cyber-header">{selectedNode.os}</span>
                   </div>
                   <div className="flex justify-between items-center text-[10px] font-mono">
-                    <span className="text-gray-500 uppercase">System Uptime</span>
-                    <span className="text-white">{selectedNode.uptime}</span>
+                    <span className="text-cyber-text/60 uppercase">System Uptime</span>
+                    <span className="text-cyber-header">{selectedNode.uptime}</span>
                   </div>
                   <div className="flex justify-between items-center text-[10px] font-mono">
-                    <span className="text-gray-500 uppercase">Status</span>
+                    <span className="text-cyber-text/60 uppercase">Status</span>
                     <span className={cn(
                       "px-2 py-0.5 rounded-full text-[8px] font-bold uppercase",
                       selectedNode.status === 'secure' ? "bg-emerald-500/20 text-emerald-400" :
