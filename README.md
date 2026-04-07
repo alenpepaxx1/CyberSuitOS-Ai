@@ -3,7 +3,7 @@ This application is integrated with Google Gemini AI. Some advanced tools and mo
 
 
 <div align="center">
-<img width="1920" height="2577" alt="Cyber" src="https://i.ibb.co/xSfwgG0M/screencapture-localhost-3000-2026-04-04-15-35-55.png" />
+<img width="1920" height="2577" alt="Cyber" src="https://i.ibb.co/hx6tbg6j/screencapture-localhost-3000-2026-04-07-08-29-22.png" />
 </div>
 
 # CyberSuite: Advanced Vulnerability Scanner & Threat Intelligence Platform
