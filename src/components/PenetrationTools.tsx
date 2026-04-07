@@ -45,6 +45,8 @@ interface ToolInfo {
   intelligence: string;
   commands: string[];
   kaliCategory: string;
+  payloads?: string[];
+  cves?: string[];
 }
 
 const KALI_CATEGORIES = [
@@ -70,7 +72,9 @@ const PEN_TOOLS: ToolInfo[] = [
     kaliCategory: '01-info-gathering',
     description: 'Network exploration tool and security / port scanner.',
     intelligence: 'Advanced topology mapping and service version detection. Uses NSE scripts for vulnerability discovery.',
-    commands: ['nmap -sV -sC -O target.com', 'nmap -T4 -A -v target.com']
+    commands: ['nmap -sV -sC -O target.com', 'nmap -T4 -A -v target.com'],
+    cves: ['CVE-2023-1234', 'CVE-2022-4567'],
+    payloads: ['-sS (TCP SYN scan)', '-sU (UDP scan)', '-p- (All ports)']
   },
   {
     id: 'whois',
@@ -101,7 +105,8 @@ const PEN_TOOLS: ToolInfo[] = [
     kaliCategory: '02-vulnerability-analysis',
     description: 'Web server scanner that tests for dangerous files and outdated software.',
     intelligence: 'Scans for over 6700 potentially dangerous files/programs and checks for outdated versions of over 1250 servers.',
-    commands: ['nikto -h http://target.com', 'nikto -h http://target.com -ssl']
+    commands: ['nikto -h http://target.com', 'nikto -h http://target.com -ssl'],
+    cves: ['CVE-2021-3452', 'CVE-2020-11022']
   },
   {
     id: 'sqlmap',
@@ -111,7 +116,8 @@ const PEN_TOOLS: ToolInfo[] = [
     kaliCategory: '03-webapp-analysis',
     description: 'Automatic SQL injection and database takeover tool.',
     intelligence: 'Advanced heuristic engine for blind SQLi detection. Capable of fingerprinting DBMS, fetching data, and accessing underlying file systems.',
-    commands: ['sqlmap -u "http://target.com/id=1" --dbs', 'sqlmap -u "http://target.com/id=1" --os-shell']
+    commands: ['sqlmap -u "http://target.com/id=1" --dbs', 'sqlmap -u "http://target.com/id=1" --os-shell'],
+    payloads: ['--level=5 --risk=3', '--tamper=space2comment', '--dump-all']
   },
   // Wireless Attacks
   {
@@ -122,7 +128,8 @@ const PEN_TOOLS: ToolInfo[] = [
     kaliCategory: '06-wireless-attacks',
     description: 'Complete suite of tools to assess WiFi network security.',
     intelligence: 'Focuses on different areas of WiFi security: Monitoring, Attacking, Testing, and Cracking (WEP and WPA-PSK).',
-    commands: ['airmon-ng start wlan0', 'airodump-ng wlan0mon', 'aircrack-ng -w wordlist.txt capture.cap']
+    commands: ['airmon-ng start wlan0', 'airodump-ng wlan0mon', 'aircrack-ng -w wordlist.txt capture.cap'],
+    payloads: ['aireplay-ng -0 10 -a <BSSID> wlan0mon']
   },
   // Exploitation Tools
   {
@@ -133,7 +140,9 @@ const PEN_TOOLS: ToolInfo[] = [
     kaliCategory: '08-exploitation-tools',
     description: 'World\'s most used penetration testing framework.',
     intelligence: 'Modular exploit delivery system. Integrated with database for session management and post-exploitation modules.',
-    commands: ['msfconsole', 'use exploit/multi/handler', 'set PAYLOAD windows/meterpreter/reverse_tcp']
+    commands: ['msfconsole', 'use exploit/multi/handler', 'set PAYLOAD windows/meterpreter/reverse_tcp'],
+    payloads: ['windows/x64/meterpreter/reverse_https', 'linux/x64/shell/reverse_tcp'],
+    cves: ['CVE-2017-0144 (EternalBlue)', 'CVE-2019-0708 (BlueKeep)']
   },
   {
     id: 'beef',
@@ -143,7 +152,8 @@ const PEN_TOOLS: ToolInfo[] = [
     kaliCategory: '08-exploitation-tools',
     description: 'The Browser Exploitation Framework.',
     intelligence: 'Focuses on the web browser, allowing for client-side attack vectors.',
-    commands: ['beef-xss']
+    commands: ['beef-xss'],
+    payloads: ['Hook Browser', 'Social Engineering Redirect']
   },
   // Sniffing & Spoofing
   {
@@ -164,7 +174,8 @@ const PEN_TOOLS: ToolInfo[] = [
     kaliCategory: '09-sniffing-spoofing',
     description: 'The Swiss Army knife for 802.11, BLE and Ethernet networks reconnaissance and MITM attacks.',
     intelligence: 'Modular and extensible tool for network attacks.',
-    commands: ['bettercap -iface eth0']
+    commands: ['bettercap -iface eth0'],
+    payloads: ['net.probe on', 'arp.spoof on']
   },
   // Password Attacks
   {
@@ -239,7 +250,11 @@ export default function PenetrationTools() {
   const [target, setTarget] = useState('');
   const [workspace, setWorkspace] = useState<ScanResult[]>([]);
   const [isTerminalMaximized, setIsTerminalMaximized] = useState(false);
+  const [terminalInput, setTerminalInput] = useState('');
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const terminalEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const filteredTools = activeCategory === 'all' 
     ? PEN_TOOLS 
@@ -251,20 +266,29 @@ export default function PenetrationTools() {
     }
   }, [analysisLogs]);
 
-  const runAnalysis = () => {
-    if (!target) {
-      logToTerminal('Target required for penetration analysis.', 'error');
+  const addLog = (message: string, type: 'info' | 'success' | 'error' | 'cmd' | 'output' = 'info') => {
+    const timestamp = new Date().toLocaleTimeString();
+    let prefix = '➜';
+    if (type === 'cmd') prefix = 'kali@root:~$';
+    if (type === 'output') prefix = '';
+    
+    setAnalysisLogs(prev => [...prev, `${prefix} ${message}`]);
+  };
+
+  const executeTool = (tool: ToolInfo, customTarget?: string) => {
+    const finalTarget = customTarget || target;
+    if (!finalTarget) {
+      addLog('Error: Target required. Use "set target <ip>" or provide target in HUD.', 'error');
       return;
     }
 
     setIsAnalyzing(true);
     setAnalysisProgress(0);
-    setAnalysisLogs([`[${new Date().toLocaleTimeString()}] Initializing ${selectedTool.name} framework...`]);
-    logToTerminal(`Initiating ${selectedTool.name} analysis on ${target}...`, 'info');
-
+    addLog(`Initializing ${tool.name} framework...`, 'info');
+    
     const steps = [
-      `Loading modules for ${selectedTool.category}...`,
-      `Resolving target: ${target}`,
+      `Loading modules for ${tool.category}...`,
+      `Resolving target: ${finalTarget}`,
       `Starting reconnaissance phase...`,
       `Scanning for service fingerprints...`,
       `Injecting advanced intelligence payloads...`,
@@ -278,8 +302,7 @@ export default function PenetrationTools() {
     let currentStep = 0;
     const interval = setInterval(() => {
       if (currentStep < steps.length) {
-        const timestamp = new Date().toLocaleTimeString();
-        setAnalysisLogs(prev => [...prev, `[${timestamp}] ${steps[currentStep]}`]);
+        addLog(steps[currentStep], 'info');
         setAnalysisProgress((currentStep + 1) * (100 / steps.length));
         currentStep++;
       } else {
@@ -288,8 +311,8 @@ export default function PenetrationTools() {
         
         const newResult: ScanResult = {
           id: Math.random().toString(36).substr(2, 9),
-          toolId: selectedTool.id,
-          target: target,
+          toolId: tool.id,
+          target: finalTarget,
           timestamp: new Date().toISOString(),
           logs: [...analysisLogs],
           vulnerabilities: [
@@ -298,9 +321,99 @@ export default function PenetrationTools() {
           ]
         };
         setWorkspace(prev => [newResult, ...prev]);
-        logToTerminal(`${selectedTool.name} analysis complete.`, 'success');
+        logToTerminal(`${tool.name} analysis complete on ${finalTarget}.`, 'success');
       }
     }, 800);
+  };
+
+  const handleCommand = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!terminalInput.trim()) return;
+
+    const cmd = terminalInput.trim().toLowerCase();
+    setCommandHistory(prev => [terminalInput, ...prev]);
+    setHistoryIndex(-1);
+    addLog(terminalInput, 'cmd');
+    setTerminalInput('');
+
+    const args = cmd.split(' ');
+    const baseCmd = args[0];
+
+    switch (baseCmd) {
+      case 'help':
+        addLog('Available commands:', 'output');
+        addLog('  help              - Show this help menu', 'output');
+        addLog('  clear             - Clear terminal screen', 'output');
+        addLog('  ls                - List available tools', 'output');
+        addLog('  set target <val>  - Set global target', 'output');
+        addLog('  run <tool_id>     - Execute a specific tool', 'output');
+        addLog('  whoami            - Display current user info', 'output');
+        addLog('  exit              - Reset terminal session', 'output');
+        break;
+      case 'clear':
+        setAnalysisLogs([]);
+        break;
+      case 'ls':
+        addLog('Available Penetration Tools:', 'output');
+        PEN_TOOLS.forEach(t => addLog(`  - ${t.id.padEnd(15)} [${t.category}]`, 'output'));
+        break;
+      case 'set':
+        if (args[1] === 'target' && args[2]) {
+          setTarget(args[2]);
+          addLog(`Target set to: ${args[2]}`, 'success');
+        } else {
+          addLog('Usage: set target <ip_or_domain>', 'error');
+        }
+        break;
+      case 'run':
+        const toolId = args[1];
+        const tool = PEN_TOOLS.find(t => t.id === toolId);
+        if (tool) {
+          executeTool(tool);
+        } else {
+          addLog(`Tool not found: ${toolId}. Use "ls" to see available tools.`, 'error');
+        }
+        break;
+      case 'whoami':
+        addLog('root@kali-suite-advanced', 'output');
+        break;
+      case 'exit':
+        setAnalysisLogs(['Terminal reset. Type "help" for commands.']);
+        break;
+      default:
+        // Check if it's a tool ID directly
+        const directTool = PEN_TOOLS.find(t => t.id === baseCmd);
+        if (directTool) {
+          executeTool(directTool);
+        } else {
+          addLog(`Command not found: ${baseCmd}. Type "help" for a list of commands.`, 'error');
+        }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (historyIndex < commandHistory.length - 1) {
+        const newIndex = historyIndex + 1;
+        setHistoryIndex(newIndex);
+        setTerminalInput(commandHistory[newIndex]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+        setTerminalInput(commandHistory[newIndex]);
+      } else if (historyIndex === 0) {
+        setHistoryIndex(-1);
+        setTerminalInput('');
+      }
+    }
+  };
+
+  const runAnalysis = () => {
+    executeTool(selectedTool);
   };
 
   const clearWorkspace = () => {
@@ -461,6 +574,127 @@ export default function PenetrationTools() {
                 </div>
               </div>
 
+              {/* Advanced Intelligence Modules */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-cyber-card border border-white/5 rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center gap-2 text-cyber-header font-bold text-sm uppercase tracking-widest">
+                    <Bug size={16} className="text-red-500" />
+                    Relevant CVE Intelligence
+                  </div>
+                  <div className="space-y-3">
+                    {selectedTool.cves ? selectedTool.cves.map((cve, i) => (
+                      <div key={i} className="p-3 bg-black/40 border border-white/5 rounded-xl flex items-center justify-between group hover:border-red-500/30 transition-all">
+                        <div className="text-xs font-mono text-cyber-header">{cve}</div>
+                        <button className="text-[10px] text-blue-500 hover:underline flex items-center gap-1">
+                          <ExternalLink size={10} /> NIST
+                        </button>
+                      </div>
+                    )) : (
+                      <div className="text-[10px] text-gray-500 italic p-4 text-center">No specific CVEs mapped for this tool.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-cyber-card border border-white/5 rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center gap-2 text-cyber-header font-bold text-sm uppercase tracking-widest">
+                    <Zap size={16} className="text-amber-500" />
+                    Available Exploit Payloads
+                  </div>
+                  <div className="space-y-3">
+                    {selectedTool.payloads ? selectedTool.payloads.map((payload, i) => (
+                      <div key={i} className="p-3 bg-black/40 border border-white/5 rounded-xl flex items-center justify-between group hover:border-amber-500/30 transition-all">
+                        <div className="text-[10px] font-mono text-cyber-text/80 truncate mr-2">{payload}</div>
+                        <button 
+                          onClick={() => {
+                            setTerminalInput(`run ${selectedTool.id} ${payload}`);
+                            inputRef.current?.focus();
+                          }}
+                          className="text-[10px] text-amber-500 hover:underline flex items-center gap-1 shrink-0"
+                        >
+                          <Play size={10} /> LOAD
+                        </button>
+                      </div>
+                    )) : (
+                      <div className="text-[10px] text-gray-500 italic p-4 text-center">No custom payloads defined.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Network Topology Map (Simulated) */}
+              <div className="bg-cyber-card border border-white/5 rounded-2xl p-6 space-y-4 shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-cyber-header font-bold text-sm uppercase tracking-widest">
+                    <Network size={16} className="text-emerald-500" />
+                    Target Network Topology
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 text-[8px] text-emerald-500/60">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> ACTIVE
+                    </div>
+                    <div className="flex items-center gap-1 text-[8px] text-red-500/60">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-500" /> VULNERABLE
+                    </div>
+                  </div>
+                </div>
+                <div className="h-48 bg-black/40 border border-white/5 rounded-xl relative overflow-hidden flex items-center justify-center">
+                  <div className="absolute inset-0 opacity-10 pointer-events-none">
+                    <div className="w-full h-full" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+                  </div>
+                  
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    {/* Central Node */}
+                    <motion.div 
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 4, repeat: Infinity }}
+                      className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center z-10 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                    >
+                      <Globe size={20} className="text-emerald-500" />
+                    </motion.div>
+
+                    {/* Surrounding Nodes */}
+                    {[0, 60, 120, 180, 240, 300].map((angle, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: i * 0.2 }}
+                        className="absolute"
+                        style={{
+                          transform: `rotate(${angle}deg) translate(80px) rotate(-${angle}deg)`
+                        }}
+                      >
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg border flex items-center justify-center shadow-lg transition-all hover:scale-110 cursor-pointer",
+                          i % 3 === 0 ? "bg-red-500/20 border-red-500/50 text-red-500" : "bg-white/5 border-white/10 text-gray-500"
+                        )}>
+                          {i % 2 === 0 ? <HardDrive size={14} /> : <Smartphone size={14} />}
+                        </div>
+                        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[6px] font-mono whitespace-nowrap opacity-40">
+                          192.168.1.{10 + i}
+                        </div>
+                      </motion.div>
+                    ))}
+
+                    {/* Connection Lines */}
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
+                      {[0, 60, 120, 180, 240, 300].map((angle, i) => (
+                        <line
+                          key={i}
+                          x1="50%"
+                          y1="50%"
+                          x2={`${50 + 35 * Math.cos(angle * Math.PI / 180)}%`}
+                          y2={`${50 + 35 * Math.sin(angle * Math.PI / 180)}%`}
+                          stroke="currentColor"
+                          strokeWidth="1"
+                          className="text-emerald-500"
+                        />
+                      ))}
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
               {/* Workspace History */}
               <div className="bg-cyber-card border border-white/5 rounded-2xl p-6 space-y-4 flex-1 min-h-0 flex flex-col">
                 <div className="flex items-center justify-between">
@@ -534,15 +768,38 @@ export default function PenetrationTools() {
                 </div>
               </div>
               
-              <div className="flex-1 p-6 font-mono text-xs overflow-y-auto custom-scrollbar bg-[#050505]">
+              <div 
+                className="flex-1 p-6 font-mono text-xs overflow-y-auto custom-scrollbar bg-[#050505]"
+                onClick={() => inputRef.current?.focus()}
+              >
                 {analysisLogs.length > 0 ? (
-                  <div className="space-y-2">
-                    {analysisLogs.map((log, i) => (
-                      <div key={i} className="text-emerald-500/90 leading-relaxed break-all">
-                        <span className="text-emerald-500/40 mr-2">➜</span>
-                        {log}
-                      </div>
-                    ))}
+                  <div className="space-y-1">
+                    {analysisLogs.map((log, i) => {
+                      const isCmd = log.startsWith('kali@root:~$');
+                      const isOutput = !log.startsWith('➜') && !isCmd;
+                      return (
+                        <div key={i} className={cn(
+                          "leading-relaxed break-all",
+                          isCmd ? "text-blue-400" : isOutput ? "text-gray-300" : "text-emerald-500/90"
+                        )}>
+                          {log}
+                        </div>
+                      );
+                    })}
+                    {!isAnalyzing && (
+                      <form onSubmit={handleCommand} className="flex items-center gap-2 mt-2">
+                        <span className="text-blue-400">kali@root:~$</span>
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          value={terminalInput}
+                          onChange={(e) => setTerminalInput(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          autoFocus
+                          className="flex-1 bg-transparent border-none outline-none text-cyber-header caret-emerald-500"
+                        />
+                      </form>
+                    )}
                     {isAnalyzing && (
                       <div className="flex items-center gap-2 text-emerald-500 animate-pulse">
                         <span className="text-emerald-500/40 mr-2">➜</span>
@@ -554,11 +811,33 @@ export default function PenetrationTools() {
                   </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-emerald-500/20 gap-4">
-                    <Terminal size={64} />
+                    <pre className="text-[8px] leading-tight font-bold opacity-40">
+{`
+    _  __    _    _     ___      ____  _   _ ___ _____ _____ 
+   | |/ /   / \\  | |   |_ _|    / ___|| | | |_ _|_   _| ____|
+   | ' /   / _ \\ | |    | |     \\___ \\| | | || |  | | |  _|  
+   | . \\  / ___ \\| |___ | |      ___) | |_| || |  | | | |___ 
+   |_|\\_\\/_/   \\_\\_____|___|    |____/ \\___/|___| |_| |_____|
+                                                             
+`}
+                    </pre>
                     <div className="text-center">
-                      <p className="font-bold">TERMINAL_IDLE</p>
-                      <p className="text-[10px]">READY FOR COMMAND EXECUTION</p>
+                      <p className="font-bold text-emerald-500/40">KALI-SUITE ADVANCED CLI v2.0</p>
+                      <p className="text-[10px] text-emerald-500/20">TYPE "HELP" TO BEGIN SESSION</p>
                     </div>
+                    <form onSubmit={handleCommand} className="w-full max-w-xs mt-4">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-lg">
+                        <span className="text-blue-400 text-[10px]">kali@root:~$</span>
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          value={terminalInput}
+                          onChange={(e) => setTerminalInput(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          className="flex-1 bg-transparent border-none outline-none text-cyber-header text-[10px] caret-emerald-500"
+                        />
+                      </div>
+                    </form>
                   </div>
                 )}
               </div>
