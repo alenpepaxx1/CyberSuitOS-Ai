@@ -74,8 +74,11 @@ class AdvancedScanner:
                         cleaned = name.strip().lower()
                         if cleaned.endswith(self.hostname) and '*' not in cleaned:
                             subdomains.add(cleaned)
+            elif response.status_code != 404:
+                print(f"[!] crt.sh returned status code {response.status_code}")
         except Exception as e:
-            print(f"[!] crt.sh lookup failed: {e}")
+            if "404" not in str(e):
+                print(f"[!] crt.sh lookup failed: {e}")
 
         # 2. Passive Enumeration (HackerTarget)
         try:
