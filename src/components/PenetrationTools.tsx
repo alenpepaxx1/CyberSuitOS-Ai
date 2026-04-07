@@ -63,7 +63,18 @@ const KALI_CATEGORIES = [
   { id: '08-exploitation-tools', name: 'Exploitation Tools', icon: Crosshair },
   { id: '09-sniffing-spoofing', name: 'Sniffing & Spoofing', icon: Activity },
   { id: '10-maintaining-access', name: 'Maintaining Access', icon: Terminal },
+  { id: '11-post-exploitation', name: 'Post Exploitation', icon: Zap },
+  { id: '12-reporting', name: 'Reporting Tools', icon: FileCode },
 ];
+
+const INITIAL_FILES: Record<string, string[]> = {
+  '/root': ['tools', 'workspace', 'logs', 'version.txt'],
+  '/root/tools': ['nmap', 'sqlmap', 'metasploit', 'nikto', 'aircrack-ng', 'hydra', 'hashcat', 'wireshark', 'bettercap', 'beef', 'john', 'ghidra', 'powersploit'],
+  '/root/workspace': ['scans', 'payloads', 'reports'],
+  '/root/logs': ['system.log', 'auth.log', 'scan_history.log'],
+  '/etc': ['passwd', 'shadow', 'hosts', 'resolv.conf'],
+  '/bin': ['ls', 'cd', 'pwd', 'cat', 'grep', 'mkdir', 'rm', 'cp', 'mv', 'chmod', 'chown', 'ps', 'top', 'kill', 'ifconfig', 'netstat', 'ping', 'whoami', 'clear', 'help']
+};
 
 const PEN_TOOLS: ToolInfo[] = [
   // Information Gathering
@@ -108,6 +119,19 @@ const PEN_TOOLS: ToolInfo[] = [
     risk: 'Low',
     stealth: 'Medium'
   },
+  {
+    id: 'gobuster',
+    name: 'Gobuster',
+    icon: Search,
+    category: 'Information Gathering',
+    kaliCategory: '01-info-gathering',
+    description: 'Tool used to discover subdomains, directories and files on websites.',
+    intelligence: 'High-speed brute-forcing of URIs and DNS subdomains.',
+    commands: ['gobuster dir -u http://target.com -w wordlist.txt'],
+    complexity: 'Medium',
+    risk: 'Low',
+    stealth: 'Medium'
+  },
   // Vulnerability Analysis
   {
     id: 'nikto',
@@ -136,6 +160,19 @@ const PEN_TOOLS: ToolInfo[] = [
     complexity: 'Advanced',
     risk: 'High',
     stealth: 'Low'
+  },
+  {
+    id: 'wpscan',
+    name: 'WPScan',
+    icon: Layers,
+    category: 'Web Applications',
+    kaliCategory: '03-webapp-analysis',
+    description: 'WordPress Security Scanner.',
+    intelligence: 'Scans WordPress installations for vulnerabilities in core, plugins, and themes.',
+    commands: ['wpscan --url http://target.com'],
+    complexity: 'Medium',
+    risk: 'Low',
+    stealth: 'Medium'
   },
   // Wireless Attacks
   {
@@ -182,6 +219,19 @@ const PEN_TOOLS: ToolInfo[] = [
     risk: 'High',
     stealth: 'Medium'
   },
+  {
+    id: 'searchsploit',
+    name: 'Searchsploit',
+    icon: Search,
+    category: 'Exploitation Tools',
+    kaliCategory: '08-exploitation-tools',
+    description: 'Command-line search tool for Exploit-DB.',
+    intelligence: 'Allows you to search the Exploit-DB archive for specific software or CVEs.',
+    commands: ['searchsploit wordpress 5.0', 'searchsploit -m 12345'],
+    complexity: 'Low',
+    risk: 'Low',
+    stealth: 'High'
+  },
   // Sniffing & Spoofing
   {
     id: 'wireshark',
@@ -212,7 +262,7 @@ const PEN_TOOLS: ToolInfo[] = [
   },
   // Password Attacks
   {
-    id: 'john-the-ripper',
+    id: 'john',
     name: 'John the Ripper',
     icon: Lock,
     category: 'Password Attacks',
@@ -277,6 +327,58 @@ const PEN_TOOLS: ToolInfo[] = [
     complexity: 'Advanced',
     risk: 'Low',
     stealth: 'High'
+  },
+  {
+    id: 'zenmap',
+    name: 'Zenmap',
+    icon: Globe,
+    category: 'Information Gathering',
+    kaliCategory: '01-info-gathering',
+    description: 'The official Nmap Security Scanner GUI.',
+    intelligence: 'Provides a graphical interface for Nmap, making it easier to visualize network topology and scan results.',
+    commands: ['zenmap'],
+    complexity: 'Medium',
+    risk: 'Medium',
+    stealth: 'Medium'
+  },
+  {
+    id: 'linux-exploit-suggester',
+    name: 'Linux Exploit Suggester',
+    icon: Search,
+    category: 'Exploitation Tools',
+    kaliCategory: '08-exploitation-tools',
+    description: 'Linux privilege escalation auditing tool.',
+    intelligence: 'Analyzes system information to suggest potential local exploits for privilege escalation.',
+    commands: ['linux-exploit-suggester.sh'],
+    complexity: 'Medium',
+    risk: 'High',
+    stealth: 'Medium'
+  },
+  {
+    id: 'mobsf',
+    name: 'MobSF',
+    icon: Smartphone,
+    category: 'Vulnerability Analysis',
+    kaliCategory: '02-vulnerability-analysis',
+    description: 'Mobile Security Framework (MobSF) is an automated, all-in-one mobile application (Android/iOS/Windows) pen-testing, malware analysis and security assessment framework.',
+    intelligence: 'Capable of performing static and dynamic analysis of mobile applications.',
+    commands: ['mobsf'],
+    complexity: 'Advanced',
+    risk: 'Medium',
+    stealth: 'Medium'
+  },
+  {
+    id: 'burpsuite',
+    name: 'Burp Suite',
+    icon: Layers,
+    category: 'Web Applications',
+    kaliCategory: '03-webapp-analysis',
+    description: 'An integrated platform for performing security testing of web applications.',
+    intelligence: 'Includes an intercepting proxy, spider, scanner, and intruder for comprehensive web application security assessments.',
+    commands: ['burpsuite'],
+    complexity: 'Advanced',
+    risk: 'High',
+    stealth: 'Low'
   }
 ];
 
@@ -295,7 +397,11 @@ const MAN_PAGES: Record<string, string> = {
   ghidra: 'GHIDRA(1) - Software reverse engineering suite. Usage: ghidraRun',
   powersploit: 'POWERSPLOIT(1) - PowerShell Post-Exploitation Framework. Usage: Import-Module PowerSploit.psm1',
   whois: 'WHOIS(1) - Client for the whois directory service. Usage: whois [options] name',
-  dnsrecon: 'DNSRECON(1) - DNS Enumeration and Scanning Tool. Usage: dnsrecon [options]'
+  dnsrecon: 'DNSRECON(1) - DNS Enumeration and Scanning Tool. Usage: dnsrecon [options]',
+  zenmap: 'ZENMAP(1) - Graphical user interface for Nmap. Usage: zenmap [options]',
+  'linux-exploit-suggester': 'LINUX-EXPLOIT-SUGGESTER(1) - Linux privilege escalation auditing tool. Usage: ./linux-exploit-suggester.sh [options]',
+  mobsf: 'MOBSF(1) - Mobile Security Framework. Usage: mobsf [options]',
+  burpsuite: 'BURPSUITE(1) - Web application security testing platform. Usage: burpsuite [options]'
 };
 
 const TOOL_STEPS: Record<string, string[]> = {
@@ -330,6 +436,38 @@ const TOOL_STEPS: Record<string, string[]> = {
     'Scanning for XSS vulnerabilities...',
     'Verifying SSL/TLS configuration...',
     'Compiling vulnerability report.'
+  ],
+  zenmap: [
+    'Launching Zenmap GUI...',
+    'Loading Nmap configuration profile...',
+    'Initializing interactive topology map...',
+    'Starting background Nmap process...',
+    'Rendering scan results in real-time...',
+    'Scan complete. Topology updated.'
+  ],
+  'linux-exploit-suggester': [
+    'Checking kernel version...',
+    'Analyzing system architecture...',
+    'Enumerating installed packages...',
+    'Comparing system state with exploit database...',
+    'Calculating exploit probability scores...',
+    'Generating suggestion list...'
+  ],
+  mobsf: [
+    'Starting MobSF static analysis engine...',
+    'Decompiling application binary...',
+    'Analyzing AndroidManifest.xml / Info.plist...',
+    'Scanning for hardcoded secrets and API keys...',
+    'Performing control flow analysis...',
+    'Static analysis complete. Report generated.'
+  ],
+  burpsuite: [
+    'Initializing Burp Suite Professional...',
+    'Setting up intercepting proxy on 127.0.0.1:8080...',
+    'Starting passive crawler...',
+    'Analyzing HTTP traffic patterns...',
+    'Identifying potential injection points...',
+    'Burp Scanner results aggregated.'
   ]
 };
 
@@ -369,6 +507,8 @@ export default function PenetrationTools() {
   const [terminalInput, setTerminalInput] = useState('');
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [currentDir, setCurrentDir] = useState('/root');
+  const [fileSystem, setFileSystem] = useState<Record<string, string[]>>(INITIAL_FILES);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -385,7 +525,7 @@ export default function PenetrationTools() {
   const addLog = (message: string, type: 'info' | 'success' | 'error' | 'cmd' | 'output' = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     let prefix = '➜';
-    if (type === 'cmd') prefix = 'kali@root:~$';
+    if (type === 'cmd') prefix = `kali@root:${currentDir}$`;
     if (type === 'output') prefix = '';
     
     setAnalysisLogs(prev => [...prev, `${prefix} ${message}`]);
@@ -476,12 +616,14 @@ export default function PenetrationTools() {
         addLog('Available commands:', 'output');
         addLog('  help              - Show this help menu', 'output');
         addLog('  clear             - Clear terminal screen', 'output');
-        addLog('  ls                - List available tools', 'output');
+        addLog('  ls [dir]          - List files in directory', 'output');
+        addLog('  cd <dir>          - Change directory', 'output');
+        addLog('  pwd               - Print working directory', 'output');
         addLog('  man <tool>        - Show manual for a tool', 'output');
         addLog('  set target <val>  - Set global target', 'output');
         addLog('  run <tool_id>     - Execute a specific tool', 'output');
         addLog('  ps                - List active processes', 'output');
-        addLog('  cat <file>        - View file content (simulated)', 'output');
+        addLog('  cat <file>        - View file content', 'output');
         addLog('  ifconfig          - Show network interface info', 'output');
         addLog('  whoami            - Display current user info', 'output');
         addLog('  exit              - Reset terminal session', 'output');
@@ -490,8 +632,29 @@ export default function PenetrationTools() {
         setAnalysisLogs([]);
         break;
       case 'ls':
-        addLog('Available Penetration Tools:', 'output');
-        PEN_TOOLS.forEach(t => addLog(`  - ${t.id.padEnd(15)} [${t.category}]`, 'output'));
+        const lsDir = args[0] || currentDir;
+        if (fileSystem[lsDir]) {
+          addLog(fileSystem[lsDir].join('  '), 'output');
+        } else {
+          addLog(`ls: cannot access '${lsDir}': No such file or directory`, 'error');
+        }
+        break;
+      case 'cd':
+        const newDir = args[0];
+        if (!newDir || newDir === '~') {
+          setCurrentDir('/root');
+        } else if (newDir === '..') {
+          const parts = currentDir.split('/').filter(Boolean);
+          parts.pop();
+          setCurrentDir('/' + parts.join('/'));
+        } else if (fileSystem[currentDir + '/' + newDir] || fileSystem[newDir]) {
+          setCurrentDir(newDir.startsWith('/') ? newDir : (currentDir === '/' ? '' : currentDir) + '/' + newDir);
+        } else {
+          addLog(`cd: ${newDir}: No such file or directory`, 'error');
+        }
+        break;
+      case 'pwd':
+        addLog(currentDir, 'output');
         break;
       case 'man':
         const manTool = args[0];
@@ -532,6 +695,9 @@ export default function PenetrationTools() {
           addLog('kali:x:1000:1000:kali,,,:/home/kali:/bin/bash', 'output');
         } else if (args[0] === 'version.txt') {
           addLog('KALI-SUITE ADVANCED v2.0.4-stable', 'output');
+        } else if (args[0] === '/etc/hosts') {
+          addLog('127.0.0.1\tlocalhost', 'output');
+          addLog('127.0.1.1\tkali-suite-advanced', 'output');
         } else {
           addLog(`cat: ${args[0]}: No such file or directory`, 'error');
         }
@@ -547,8 +713,47 @@ export default function PenetrationTools() {
       case 'whoami':
         addLog('root@kali-suite-advanced', 'output');
         break;
+      case 'ping':
+        if (!args[0]) {
+          addLog('Usage: ping <host>', 'error');
+        } else {
+          addLog(`PING ${args[0]} (192.168.1.1) 56(84) bytes of data.`, 'output');
+          addLog(`64 bytes from 192.168.1.1: icmp_seq=1 ttl=64 time=0.456 ms`, 'output');
+          addLog(`64 bytes from 192.168.1.1: icmp_seq=2 ttl=64 time=0.412 ms`, 'output');
+          addLog(`--- ${args[0]} ping statistics ---`, 'output');
+          addLog('2 packets transmitted, 2 received, 0% packet loss, time 1001ms', 'output');
+        }
+        break;
+      case 'mkdir':
+        if (!args[0]) {
+          addLog('Usage: mkdir <dir>', 'error');
+        } else {
+          const newDirPath = currentDir === '/' ? `/${args[0]}` : `${currentDir}/${args[0]}`;
+          setFileSystem(prev => ({ ...prev, [newDirPath]: [], [currentDir]: [...(prev[currentDir] || []), args[0]] }));
+          addLog(`Directory created: ${args[0]}`, 'success');
+        }
+        break;
+      case 'rm':
+        if (!args[0]) {
+          addLog('Usage: rm <file>', 'error');
+        } else {
+          setFileSystem(prev => {
+            const newFS = { ...prev };
+            const currentFiles = newFS[currentDir] || [];
+            newFS[currentDir] = currentFiles.filter(f => f !== args[0]);
+            return newFS;
+          });
+          addLog(`Removed: ${args[0]}`, 'success');
+        }
+        break;
       case 'exit':
-        setAnalysisLogs(['Terminal reset. Type "help" for commands.']);
+        addLog('Session terminated. Reconnecting...', 'info');
+        setTimeout(() => {
+          setAnalysisLogs([]);
+          setCurrentDir('/root');
+          addLog('KALI-SUITE ADVANCED Terminal v2.0.4', 'success');
+          addLog('Type "help" for a list of commands.', 'info');
+        }, 1000);
         break;
       default:
         // Check if it's a tool ID directly
@@ -568,7 +773,7 @@ export default function PenetrationTools() {
       if (!input) return;
 
       const matches = PEN_TOOLS.filter(t => t.id.startsWith(input)).map(t => t.id);
-      const cmdMatches = ['help', 'clear', 'ls', 'man', 'set', 'run', 'ps', 'cat', 'ifconfig', 'whoami', 'exit'].filter(c => c.startsWith(input));
+      const cmdMatches = ['help', 'clear', 'ls', 'cd', 'pwd', 'man', 'set', 'run', 'ps', 'cat', 'ifconfig', 'whoami', 'ping', 'mkdir', 'rm', 'exit'].filter(c => c.startsWith(input));
       
       const allMatches = [...matches, ...cmdMatches];
       if (allMatches.length === 1) {
@@ -954,7 +1159,7 @@ export default function PenetrationTools() {
                     <div className="w-3 h-3 rounded-full bg-amber-500/50" />
                     <div className="w-3 h-3 rounded-full bg-emerald-500/50" />
                   </div>
-                  <span className="text-[10px] font-mono text-gray-400 ml-4">root@kali-suite:~/{selectedTool.id}</span>
+                  <span className="text-[10px] font-mono text-gray-400 ml-4">root@kali-suite-advanced:~{currentDir}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button 
@@ -968,6 +1173,31 @@ export default function PenetrationTools() {
                   </button>
                 </div>
               </div>
+
+              {/* Terminal Status Bar */}
+              <div className="flex items-center justify-between px-4 py-1.5 bg-black/40 border-b border-white/5 text-[9px] font-mono text-cyber-text/40">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <div className="w-1 h-1 rounded-full bg-cyber-green animate-pulse" />
+                    SYS_OK
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Activity size={10} className="text-blue-500/50" />
+                    CPU: 12%
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <HardDrive size={10} className="text-amber-500/50" />
+                    DISK: 45GB
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <Wifi size={10} className="text-emerald-500/50" />
+                    VPN: ON
+                  </div>
+                  <div className="text-cyber-header/30 uppercase tracking-tighter">KALI-CLI v2.1</div>
+                </div>
+              </div>
               
               <div 
                 className="flex-1 p-6 font-mono text-xs overflow-y-auto custom-scrollbar bg-[#050505]"
@@ -976,7 +1206,7 @@ export default function PenetrationTools() {
                 {analysisLogs.length > 0 ? (
                   <div className="space-y-1">
                     {analysisLogs.map((log, i) => {
-                      const isCmd = log.startsWith('kali@root:~$');
+                      const isCmd = log.includes(`kali@root:${currentDir}$`);
                       const isOutput = !log.startsWith('➜') && !isCmd;
                       return (
                         <div key={i} className={cn(
@@ -989,7 +1219,7 @@ export default function PenetrationTools() {
                     })}
                     {!isAnalyzing && (
                       <form onSubmit={handleCommand} className="flex items-center gap-2 mt-2">
-                        <span className="text-blue-400">kali@root:~$</span>
+                        <span className="text-blue-400">kali@root:{currentDir}$</span>
                         <input
                           ref={inputRef}
                           type="text"
@@ -1023,12 +1253,12 @@ export default function PenetrationTools() {
 `}
                     </pre>
                     <div className="text-center">
-                      <p className="font-bold text-emerald-500/40">KALI-SUITE ADVANCED CLI v2.0</p>
-                      <p className="text-[10px] text-emerald-500/20">TYPE "HELP" TO BEGIN SESSION</p>
+                      <p className="font-bold text-emerald-500/40 uppercase tracking-[0.2em]">Kali-Suite Advanced CLI v2.1</p>
+                      <p className="text-[10px] text-emerald-500/20">TYPE "HELP" TO INITIALIZE SESSION</p>
                     </div>
                     <form onSubmit={handleCommand} className="w-full max-w-xs mt-4">
                       <div className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-lg">
-                        <span className="text-blue-400 text-[10px]">kali@root:~$</span>
+                        <span className="text-blue-400 text-[10px]">kali@root:{currentDir}$</span>
                         <input
                           ref={inputRef}
                           type="text"
