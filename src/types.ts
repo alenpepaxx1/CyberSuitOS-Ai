@@ -1,5 +1,5 @@
 /* COPYRIGHT ALEN PEPA */
-export type ToolId = 'dashboard' | 'passwords' | 'crypto' | 'network' | 'payloads' | 'stego' | 'scanner' | 'settings' | 'anonymous-chat' | 'topology' | 'cyber-range' | 'phishing' | 'python-lab' | 'dorks';
+export type ToolId = 'dashboard' | 'passwords' | 'crypto' | 'network' | 'payloads' | 'stego' | 'scanner' | 'settings' | 'anonymous-chat' | 'topology' | 'cyber-range' | 'phishing' | 'python-lab' | 'dorks' | 'penetration';
 
 export interface Tool {
   id: ToolId;
