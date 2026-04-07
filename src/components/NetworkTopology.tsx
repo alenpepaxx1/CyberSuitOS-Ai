@@ -290,11 +290,12 @@ export default function NetworkTopology() {
     svg.call(zoom);
 
     const simulation = d3.forceSimulation<Node>(nodes)
-      .alphaDecay(0.05)
-      .force('link', d3.forceLink<Node, Link>(links).id(d => d.id).distance(100))
-      .force('charge', d3.forceManyBody().strength(-600))
+      .alphaDecay(0.1)
+      .velocityDecay(0.6)
+      .force('link', d3.forceLink<Node, Link>(links).id(d => d.id).distance(120))
+      .force('charge', d3.forceManyBody().strength(-800))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('x', d3.forceX(width / 2).strength(0.2))
+      .force('x', d3.forceX(width / 2).strength(0.1))
       .force('y', d3.forceY((d: any) => {
         const id = d.id;
         if (id === 'internet') return height * 0.15;
@@ -303,8 +304,8 @@ export default function NetworkTopology() {
         if (id === 'int-fw') return height * 0.6;
         if (id === 'core-switch') return height * 0.75;
         return height * 0.9;
-      }).strength(2.5))
-      .force('collision', d3.forceCollide().radius(70));
+      }).strength(0.8))
+      .force('collision', d3.forceCollide().radius(80));
 
     // Layer Labels
     const layers = [
@@ -493,14 +494,13 @@ export default function NetworkTopology() {
       .attr('font-family', 'monospace')
       .attr('opacity', zoomLevel > 1.2 ? 1 : 0);
 
-    simulation.on('tick', () => {
+    const updatePositions = () => {
       link.attr('d', (d: any) => {
         const sourceX = d.source.x;
         const sourceY = d.source.y;
         const targetX = d.target.x;
         const targetY = d.target.y;
         
-        // Use a more structured "schematic" curve
         const midY = (sourceY + targetY) / 2;
         return `M${sourceX},${sourceY} C${sourceX},${midY} ${targetX},${midY} ${targetX},${targetY}`;
       });
@@ -525,9 +525,13 @@ export default function NetworkTopology() {
           const target = nodes.find(n => n.id === d.to);
           return target?.y || 0;
         });
-        
-      // Packets are animated via SVG animateMotion, which automatically follows the path 'd' attribute.
-    });
+    };
+
+    // Pre-calculate layout for a static feel
+    for (let i = 0; i < 300; ++i) simulation.tick();
+    updatePositions();
+
+    simulation.on('tick', updatePositions);
 
     function dragstarted(event: any) {
       if (!event.active) simulation.alphaTarget(0.3).restart();
