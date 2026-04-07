@@ -124,20 +124,24 @@ class VulnerabilityScanner {
   static async subdomainEnum(hostname: string) {
     if (net.isIP(hostname) || hostname === 'localhost') return [];
     
-    const searchDomain = hostname.replace(/^www\./, '');
+    const searchDomain = hostname.replace(/^www\./, '').toLowerCase();
     const results: any[] = [];
     const subdomains = new Set<string>();
 
     // 1. Passive Enumeration (crt.sh)
     try {
-      const response = await axios.get(`https://crt.sh/?q=%25.${searchDomain}&output=json`, { timeout: 10000 });
+      const response = await axios.get(`https://crt.sh/?q=%25.${searchDomain}&output=json`, { timeout: 15000 });
       if (response.status === 200 && Array.isArray(response.data)) {
         response.data.forEach((entry: any) => {
           const name = entry.name_value;
           if (name.includes('\n')) {
-            name.split('\n').forEach((n: string) => subdomains.add(n.trim()));
+            name.split('\n').forEach((n: string) => {
+              const cleaned = n.trim().toLowerCase();
+              if (cleaned.endsWith(searchDomain) && !cleaned.includes('*')) subdomains.add(cleaned);
+            });
           } else {
-            subdomains.add(name.trim());
+            const cleaned = name.trim().toLowerCase();
+            if (cleaned.endsWith(searchDomain) && !cleaned.includes('*')) subdomains.add(cleaned);
           }
         });
       }
@@ -145,7 +149,23 @@ class VulnerabilityScanner {
       console.warn("[Scanner] crt.sh lookup failed:", e);
     }
 
-    // 2. Common Subdomains Brute-force
+    // 2. Passive Enumeration (HackerTarget - Free API)
+    try {
+      const response = await axios.get(`https://api.hackertarget.com/hostsearch/?q=${searchDomain}`, { timeout: 10000 });
+      if (response.status === 200 && typeof response.data === 'string') {
+        response.data.split('\n').forEach(line => {
+          const parts = line.split(',');
+          if (parts[0]) {
+            const cleaned = parts[0].trim().toLowerCase();
+            if (cleaned.endsWith(searchDomain)) subdomains.add(cleaned);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("[Scanner] HackerTarget lookup failed:", e);
+    }
+
+    // 3. Common Subdomains Brute-force (Expanded)
     const commonSubs = [
       'www', 'mail', 'dev', 'api', 'staging', 'blog', 'vpn', 'ns1', 'ns2', 'mx',
       'shop', 'store', 'app', 'portal', 'admin', 'test', 'demo', 'support', 'help',
@@ -158,21 +178,42 @@ class VulnerabilityScanner {
       'jenkins', 'gitlab', 'docker', 'registry', 'k8s', 'kubernetes', 'cluster',
       'db', 'database', 'sql', 'mysql', 'postgres', 'redis', 'elastic', 'mongo',
       'search', 'files', 'upload', 'download', 'media', 'images', 'videos', 'assets1', 'assets2',
-      'dev1', 'dev2', 'dev3', 'qa', 'uat', 'prod', 'production', 'sandbox', 'preprod'
+      'dev1', 'dev2', 'dev3', 'qa', 'uat', 'prod', 'production', 'sandbox', 'preprod',
+      'jira', 'confluence', 'slack', 'mattermost', 'rocketchat', 'nexus', 'artifactory',
+      'sonarqube', 'bitbucket', 'github', 'gitlab-ci', 'travis', 'circleci', 'drone',
+      'aws', 'azure', 'gcp', 's3', 'bucket', 'storage', 'lambda', 'functions', 'ec2',
+      'rds', 'elasticache', 'sqs', 'sns', 'iam', 'console', 'portal-dev', 'portal-test',
+      'mfa', 'sso', 'idp', 'saml', 'okta', 'onelogin', 'ping', 'keycloak', 'vault',
+      'consul', 'nomad', 'terraform', 'ansible', 'puppet', 'chef', 'salt', 'stack',
+      'graylog', 'splunk', 'elk', 'kibana', 'logstash', 'elasticsearch', 'fluentd',
+      'api-docs', 'swagger', 'redoc', 'graphql', 'rest', 'soap', 'wsdl', 'xml',
+      'backup', 'backups', 'archive', 'old', 'legacy', 'temp', 'tmp', 'junk', 'test1',
+      'test2', 'test3', 'dev-portal', 'dev-docs', 'api-portal', 'api-gateway', 'gateway'
     ];
     commonSubs.forEach(sub => subdomains.add(`${sub}.${searchDomain}`));
 
-    const limit = pLimit(10);
+    // 4. Wildcard Detection
+    let isWildcard = false;
+    try {
+      const randomSub = `random-${Math.random().toString(36).substring(2, 10)}.${searchDomain}`;
+      const lookup = await dns.promises.lookup(randomSub);
+      if (lookup && lookup.address) isWildcard = true;
+    } catch (e) {}
+
+    const limit = pLimit(15);
     await Promise.all(Array.from(subdomains).map(domain => limit(async () => {
       try {
         const lookup = await dns.promises.lookup(domain);
         if (lookup && lookup.address) {
+          // If wildcard, we only add if it's not the same IP as the wildcard or if it's a known common sub
           results.push({ subdomain: domain, ip: lookup.address, status: 'up' });
         }
       } catch (e) {}
     })));
 
-    return results;
+    // Deduplicate and sort
+    const uniqueResults = Array.from(new Map(results.map(item => [item.subdomain, item])).values());
+    return uniqueResults.sort((a, b) => a.subdomain.localeCompare(b.subdomain));
   }
 
   static async headerAnalysis(url: string) {
