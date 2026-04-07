@@ -232,8 +232,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-4 rounded-xl flex items-center gap-3">
         <AlertTriangle size={20} className="shrink-0" />
         <div>
-          <h3 className="font-bold text-sm">Tool Under Development</h3>
-          <p className="text-xs text-yellow-500/80">This tool is currently under active development. Some features may be inactive or unstable. Use with caution.</p>
+          <h3 className="font-bold text-sm">Important Notice</h3>
+          <p className="text-xs text-yellow-500/80">This application is integrated with Google Gemini AI. Some advanced tools and modules inside the Vulnerability Scanner require a valid Gemini API key to function properly. Without the API key, only the local modules will run (such as basic scanning functions). Please ensure you have configured your Gemini API key if you want to access the full set of online features.</p>
         </div>
       </div>
       {/* Header HUD */}
