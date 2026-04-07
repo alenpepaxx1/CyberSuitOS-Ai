@@ -55,23 +55,84 @@ class AdvancedScanner:
 
     def run_subdomain_enum(self):
         print(f"[*] Enumerating subdomains for {self.hostname}...")
-        # Passive enumeration using crt.sh
+        subdomains = set()
+        
+        # 1. Passive Enumeration (crt.sh)
         try:
             url = f"https://crt.sh/?q=%25.{self.hostname}&output=json"
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=15)
             if response.status_code == 200:
                 data = response.json()
-                subdomains = set()
                 for entry in data:
                     name = entry['name_value']
                     if '\n' in name:
                         for n in name.split('\n'):
-                            subdomains.add(n)
+                            cleaned = n.strip().lower()
+                            if cleaned.endswith(self.hostname) and '*' not in cleaned:
+                                subdomains.add(cleaned)
                     else:
-                        subdomains.add(name)
-                self.results["subdomains"] = list(subdomains)
+                        cleaned = name.strip().lower()
+                        if cleaned.endswith(self.hostname) and '*' not in cleaned:
+                            subdomains.add(cleaned)
         except Exception as e:
-            print(f"[!] Subdomain enumeration failed: {e}")
+            print(f"[!] crt.sh lookup failed: {e}")
+
+        # 2. Passive Enumeration (HackerTarget)
+        try:
+            url = f"https://api.hackertarget.com/hostsearch/?q={self.hostname}"
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                for line in response.text.split('\n'):
+                    parts = line.split(',')
+                    if parts[0]:
+                        cleaned = parts[0].strip().lower()
+                        if cleaned.endswith(self.hostname):
+                            subdomains.add(cleaned)
+        except Exception as e:
+            print(f"[!] HackerTarget lookup failed: {e}")
+
+        # 3. DNS Brute-force (Expanded List)
+        common_subs = [
+            'www', 'mail', 'dev', 'api', 'staging', 'blog', 'vpn', 'ns1', 'ns2', 'mx',
+            'shop', 'store', 'app', 'portal', 'admin', 'test', 'demo', 'support', 'help',
+            'docs', 'beta', 'static', 'assets', 'img', 'cdn', 'cloud', 'remote', 'secure',
+            'login', 'auth', 'account', 'profile', 'dashboard', 'internal', 'corp', 'staff',
+            'ftp', 'smtp', 'pop', 'imap', 'webmail', 'autodiscover', 'cpanel', 'whm', 'webdisk',
+            'm', 'mobile', 'news', 'forum', 'client', 'clients', 'billing', 'panel', 'manage',
+            'git', 'svn', 'dev-api', 'api-dev', 'test-api', 'api-test', 'v1', 'v2', 'v3',
+            'status', 'monitor', 'monitoring', 'zabbix', 'nagios', 'grafana', 'prometheus',
+            'jenkins', 'gitlab', 'docker', 'registry', 'k8s', 'kubernetes', 'cluster',
+            'db', 'database', 'sql', 'mysql', 'postgres', 'redis', 'elastic', 'mongo',
+            'search', 'files', 'upload', 'download', 'media', 'images', 'videos', 'assets1', 'assets2',
+            'dev1', 'dev2', 'dev3', 'qa', 'uat', 'prod', 'production', 'sandbox', 'preprod',
+            'jira', 'confluence', 'slack', 'mattermost', 'rocketchat', 'nexus', 'artifactory',
+            'sonarqube', 'bitbucket', 'github', 'gitlab-ci', 'travis', 'circleci', 'drone',
+            'aws', 'azure', 'gcp', 's3', 'bucket', 'storage', 'lambda', 'functions', 'ec2',
+            'rds', 'elasticache', 'sqs', 'sns', 'iam', 'console', 'portal-dev', 'portal-test',
+            'mfa', 'sso', 'idp', 'saml', 'okta', 'onelogin', 'ping', 'keycloak', 'vault',
+            'consul', 'nomad', 'terraform', 'ansible', 'puppet', 'chef', 'salt', 'stack',
+            'graylog', 'splunk', 'elk', 'kibana', 'logstash', 'elasticsearch', 'fluentd',
+            'api-docs', 'swagger', 'redoc', 'graphql', 'rest', 'soap', 'wsdl', 'xml',
+            'backup', 'backups', 'archive', 'old', 'legacy', 'temp', 'tmp', 'junk', 'test1',
+            'test2', 'test3', 'dev-portal', 'dev-docs', 'api-portal', 'api-gateway', 'gateway'
+        ]
+        for sub in common_subs:
+            subdomains.add(f"{sub}.{self.hostname}")
+
+        # 4. Verification
+        results = []
+        def verify_sub(domain):
+            try:
+                answers = dns.resolver.resolve(domain, 'A')
+                return {"subdomain": domain, "ip": str(answers[0]), "status": "up"}
+            except:
+                return None
+
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            verified = list(executor.map(verify_sub, subdomains))
+            results = [v for v in verified if v]
+
+        self.results["subdomains"] = results
 
     def run_header_analysis(self):
         print(f"[*] Analyzing HTTP headers for {self.target}...")
