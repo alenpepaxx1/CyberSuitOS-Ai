@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Shield, AlertTriangle, Activity, Globe, Zap, Lock, 
   Terminal, Server, Cpu, Database, Eye, RefreshCw,
-  TrendingUp, TrendingDown, Target, Radio, ShieldAlert, ShieldCheck, MessageSquare, ExternalLink, Clock, Loader2, Terminal as TerminalIcon,
+  TrendingUp, TrendingDown, Target, Rss, ShieldAlert, ShieldCheck, MessageSquare, ExternalLink, Clock, Loader2, Terminal as TerminalIcon,
   Mail, Hash, Search, Settings, Bot, User, BarChart3, PieChart as PieChartIcon, Map as MapIcon, Layers, Wifi, Fingerprint, Bug
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -701,7 +701,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         <div className="cyber-card rounded-xl flex flex-col">
           <div className="p-4 border-b border-cyber-border bg-cyber-card/40 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Radio className="w-5 h-5 text-red-500" />
+              <Rss className="w-5 h-5 text-red-500" />
               <h2 className="text-sm font-mono uppercase tracking-widest text-cyber-header">Live Threat Feed</h2>
             </div>
             <div className="text-[9px] font-mono text-cyber-text/60 uppercase">Source: Global_Net</div>
