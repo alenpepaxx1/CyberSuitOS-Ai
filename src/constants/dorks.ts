@@ -109,4 +109,63 @@ export const EXTENDED_DORKS: Dork[] = [
   { id: 'o3', title: 'Public Pastebin Pastes', query: 'site:pastebin.com "password" OR "api_key"', category: 'custom', description: 'Finds public Pastebin pastes containing sensitive data.', severity: 'high' },
   { id: 'o4', title: 'Public GitHub Gists', query: 'site:gist.github.com "password" OR "token"', category: 'custom', description: 'Finds public GitHub Gists containing sensitive data.', severity: 'high' },
   { id: 'o5', title: 'Public LinkedIn Profiles', query: 'site:linkedin.com/in/ "cybersecurity"', category: 'custom', description: 'Finds LinkedIn profiles related to cybersecurity.', severity: 'low' },
+
+  // --- DATABASE & STORAGE ---
+  { id: 'db1', title: 'Exposed MongoDB Status', query: 'intitle:"MongoDB" "status" "version"', category: 'database', description: 'Finds exposed MongoDB status pages.', severity: 'high' },
+  { id: 'db2', title: 'Exposed Redis Info', query: 'intitle:"Redis" "info" "version"', category: 'database', description: 'Finds exposed Redis info pages.', severity: 'high' },
+  { id: 'db3', title: 'Exposed Memcached Stats', query: 'intitle:"Memcached" "stats" "version"', category: 'database', description: 'Finds exposed Memcached stats pages.', severity: 'medium' },
+  { id: 'db4', title: 'Exposed CouchDB Dashboard', query: 'intitle:"CouchDB" "Welcome"', category: 'database', description: 'Finds exposed CouchDB Fauxton dashboards.', severity: 'high' },
+  { id: 'db5', title: 'Exposed Cassandra Status', query: 'intitle:"Cassandra" "status" "cluster"', category: 'database', description: 'Finds exposed Cassandra status pages.', severity: 'high' },
+
+  // --- CI/CD & DEV TOOLS ---
+  { id: 'dev1', title: 'Exposed GitLab Sign-in', query: 'intitle:"GitLab" "Sign in"', category: 'login', description: 'Locates GitLab login pages.', severity: 'low' },
+  { id: 'dev2', title: 'Exposed Bitbucket Login', query: 'intitle:"Bitbucket" "Log in"', category: 'login', description: 'Locates Bitbucket login pages.', severity: 'low' },
+  { id: 'dev3', title: 'Exposed TeamCity Login', query: 'intitle:"TeamCity" "Log in"', category: 'login', description: 'Locates TeamCity login pages.', severity: 'low' },
+  { id: 'dev4', title: 'Exposed Bamboo Login', query: 'intitle:"Bamboo" "Log in"', category: 'login', description: 'Locates Bamboo login pages.', severity: 'low' },
+  { id: 'dev5', title: 'Exposed CircleCI Config', query: 'filetype:yml "circleci" "auth_token"', category: 'sensitive', description: 'Finds exposed CircleCI configuration files.', severity: 'critical' },
+
+  // --- NETWORK & INFRA ---
+  { id: 'net1', title: 'Exposed Cisco VPN', query: 'intitle:"Cisco AnyConnect" "Login"', category: 'network', description: 'Locates Cisco AnyConnect VPN login pages.', severity: 'medium' },
+  { id: 'net2', title: 'Exposed FortiGate VPN', query: 'intitle:"FortiGate" "Login"', category: 'network', description: 'Locates FortiGate VPN login pages.', severity: 'medium' },
+  { id: 'net3', title: 'Exposed Palo Alto VPN', query: 'intitle:"GlobalProtect" "Login"', category: 'network', description: 'Locates Palo Alto GlobalProtect VPN login pages.', severity: 'medium' },
+  { id: 'net4', title: 'Exposed Juniper VPN', query: 'intitle:"Juniper Networks" "Login"', category: 'network', description: 'Locates Juniper VPN login pages.', severity: 'medium' },
+  { id: 'net5', title: 'Exposed F5 BIG-IP', query: 'intitle:"BIG-IP" "Login"', category: 'network', description: 'Locates F5 BIG-IP management interfaces.', severity: 'high' },
+
+  // --- CLOUD SERVICES ---
+  { id: 'cloud1', title: 'Exposed Heroku Config', query: 'filetype:env "HEROKU_API_KEY"', category: 'sensitive', description: 'Finds exposed Heroku API keys.', severity: 'critical' },
+  { id: 'cloud2', title: 'Exposed Netlify Config', query: 'filetype:toml "netlify" "token"', category: 'sensitive', description: 'Finds exposed Netlify configuration files.', severity: 'high' },
+  { id: 'cloud3', title: 'Exposed Vercel Config', query: 'filetype:json "vercel" "token"', category: 'sensitive', description: 'Finds exposed Vercel configuration files.', severity: 'high' },
+  { id: 'cloud4', title: 'Exposed Supabase Config', query: 'filetype:env "SUPABASE_KEY"', category: 'sensitive', description: 'Finds exposed Supabase API keys.', severity: 'critical' },
+  { id: 'cloud5', title: 'Exposed PlanetScale Config', query: 'filetype:env "PLANETSCALE_TOKEN"', category: 'sensitive', description: 'Finds exposed PlanetScale tokens.', severity: 'critical' },
+
+  // --- MISC SENSITIVE ---
+  { id: 'm1', title: 'Exposed Zoom Meetings', query: 'site:zoom.us/j/ "password"', category: 'custom', description: 'Finds public Zoom meeting links with passwords.', severity: 'medium' },
+  { id: 'm2', title: 'Exposed Slack Webhooks', query: 'filetype:env "hooks.slack.com/services/"', category: 'sensitive', description: 'Finds exposed Slack incoming webhooks.', severity: 'high' },
+  { id: 'm3', title: 'Exposed Discord Webhooks', query: 'filetype:env "discord.com/api/webhooks/"', category: 'sensitive', description: 'Finds exposed Discord webhooks.', severity: 'high' },
+  { id: 'm4', title: 'Exposed Telegram Bot Tokens', query: 'filetype:env "api.telegram.org/bot"', category: 'sensitive', description: 'Finds exposed Telegram bot tokens.', severity: 'critical' },
+  { id: 'm5', title: 'Exposed Twilio Credentials', query: 'filetype:env "TWILIO_ACCOUNT_SID" "TWILIO_AUTH_TOKEN"', category: 'sensitive', description: 'Finds exposed Twilio credentials.', severity: 'critical' },
+
+  // --- E-COMMERCE & PAYMENT ---
+  { id: 'pay1', title: 'Exposed PayPal Client ID', query: 'filetype:env "PAYPAL_CLIENT_ID"', category: 'sensitive', description: 'Finds exposed PayPal client IDs.', severity: 'high' },
+  { id: 'pay2', title: 'Exposed Braintree Config', query: 'filetype:env "BRAINTREE_PRIVATE_KEY"', category: 'sensitive', description: 'Finds exposed Braintree private keys.', severity: 'critical' },
+  { id: 'pay3', title: 'Exposed Razorpay Key', query: 'filetype:env "RAZORPAY_KEY_SECRET"', category: 'sensitive', description: 'Finds exposed Razorpay secrets.', severity: 'critical' },
+  { id: 'pay4', title: 'Exposed Paystack Secret', query: 'filetype:env "PAYSTACK_SECRET_KEY"', category: 'sensitive', description: 'Finds exposed Paystack secrets.', severity: 'critical' },
+
+  // --- MONITORING & LOGS ---
+  { id: 'mon1', title: 'Exposed Sentry DSN', query: 'filetype:env "SENTRY_DSN"', category: 'sensitive', description: 'Finds exposed Sentry DSNs.', severity: 'medium' },
+  { id: 'mon2', title: 'Exposed New Relic Key', query: 'filetype:env "NEW_RELIC_LICENSE_KEY"', category: 'sensitive', description: 'Finds exposed New Relic license keys.', severity: 'high' },
+  { id: 'mon3', title: 'Exposed Datadog API Key', query: 'filetype:env "DATADOG_API_KEY"', category: 'sensitive', description: 'Finds exposed Datadog API keys.', severity: 'high' },
+  { id: 'mon4', title: 'Exposed Splunk Token', query: 'filetype:env "SPLUNK_TOKEN"', category: 'sensitive', description: 'Finds exposed Splunk tokens.', severity: 'high' },
+
+  // --- AUTH & IDENTITY ---
+  { id: 'auth1', title: 'Exposed Auth0 Domain', query: 'filetype:env "AUTH0_DOMAIN"', category: 'sensitive', description: 'Finds exposed Auth0 domains.', severity: 'medium' },
+  { id: 'auth2', title: 'Exposed Okta Token', query: 'filetype:env "OKTA_API_TOKEN"', category: 'sensitive', description: 'Finds exposed Okta API tokens.', severity: 'critical' },
+  { id: 'auth3', title: 'Exposed Keycloak Config', query: 'filetype:json "keycloak" "realm" "auth-server-url"', category: 'sensitive', description: 'Finds exposed Keycloak configuration files.', severity: 'high' },
+  { id: 'auth4', title: 'Exposed JWT Secret', query: 'filetype:env "JWT_SECRET" OR "JWT_KEY"', category: 'sensitive', description: 'Finds exposed JWT secrets.', severity: 'critical' },
+
+  // --- MISC TOOLS ---
+  { id: 'tool1', title: 'Exposed Mailchimp API Key', query: 'filetype:env "MAILCHIMP_API_KEY"', category: 'sensitive', description: 'Finds exposed Mailchimp API keys.', severity: 'high' },
+  { id: 'tool2', title: 'Exposed SendGrid API Key', query: 'filetype:env "SENDGRID_API_KEY"', category: 'sensitive', description: 'Finds exposed SendGrid API keys.', severity: 'high' },
+  { id: 'tool3', title: 'Exposed Algolia Admin Key', query: 'filetype:env "ALGOLIA_ADMIN_KEY"', category: 'sensitive', description: 'Finds exposed Algolia admin keys.', severity: 'critical' },
+  { id: 'tool4', title: 'Exposed Pusher App Secret', query: 'filetype:env "PUSHER_APP_SECRET"', category: 'sensitive', description: 'Finds exposed Pusher secrets.', severity: 'high' },
 ];
