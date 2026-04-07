@@ -77,4 +77,6 @@ GEMINI_API_KEY=your_api_key_here
 This tool is for **educational and ethical security testing purposes only**. Unauthorized scanning of targets without explicit permission is illegal and unethical. The developers assume no liability for misuse of this software.
 
 ---
-*Built with ❤️ for the Security Community.*
+## Developed by Alen Pepa
+This application has been created and maintained by Alen Pepa. All modules and scripts are part of his development work.
+
