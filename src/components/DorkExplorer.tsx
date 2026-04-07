@@ -19,7 +19,8 @@ import {
   Trash2,
   Info,
   Zap,
-  ShieldAlert
+  ShieldAlert,
+  Radio
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
