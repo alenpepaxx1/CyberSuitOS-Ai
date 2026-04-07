@@ -50,6 +50,7 @@ import SystemConfig from './components/SystemConfig';
 import SecurityAnalyst from './components/SecurityAnalyst';
 import AIAnalyst from './components/AIAnalyst';
 import DorkExplorer from './components/DorkExplorer';
+import PenetrationTools from './components/PenetrationTools';
 import Launcher from './components/Launcher';
 import Terminal, { logToTerminal } from './components/Terminal';
 import CustomCursor from './components/CustomCursor';
@@ -151,6 +152,7 @@ function MainContent() {
 
   const tools = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, color: 'text-emerald-500' },
+    { id: 'penetration', name: 'Penetration', icon: Shield, color: 'text-red-500' },
     { id: 'scanner', name: 'Vulnerability Scanner', icon: Search, color: 'text-red-500' },
     { id: 'topology', name: 'Network Topology', icon: Globe, color: 'text-blue-500' },
     { id: 'cyber-range', name: 'Cyber Range', icon: Target, color: 'text-amber-500' },
@@ -170,6 +172,7 @@ function MainContent() {
   const renderTool = () => {
     switch (activeTool) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigate} />;
+      case 'penetration': return <PenetrationTools />;
       case 'scanner': return <VulnerabilityScanner />;
       case 'topology': return <NetworkTopology />;
       case 'cyber-range': return <CyberRange />;
