@@ -6,6 +6,8 @@
 
 **CyberSuite OS** is a sophisticated, production-grade cybersecurity operations platform and educational suite. It provides a comprehensive set of tools for ethical hacking, vulnerability research, and security training, all wrapped in a high-performance, immersive "OS-style" interface.
 
+# For advanced analysis with artificial intelligence you must have a gemini api key.
+
 ## 🚀 Key Features
 
 ### 📊 Security Operations Center (SOC)
